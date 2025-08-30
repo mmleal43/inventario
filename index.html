@@ -3,176 +3,414 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ALDISAN – Avance de Escaneo</title>
+<title>ALDISAN – Avance de Escaneo (con tolerancia a permisos)</title>
 
+<!-- Cámara y QR -->
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 
 <style>
-  body{margin:0;background:#0b1220;color:#eaf2ff;font-family:system-ui,Segoe UI,Roboto,sans-serif;}
-  header{padding:16px;background:#141824;border-bottom:1px solid #1e2535;text-align:center}
-  header h1{margin:0;font-size:20px;color:#00e5ff;text-shadow:0 0 6px #00e5ff}
-  .wrap{padding:20px;max-width:900px;margin:auto}
-  .scanner{min-height:280px;border:1px dashed #37507a;border-radius:12px;overflow:hidden;background:#0b1328}
-  .totals{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;margin:20px 0}
-  .kpi{background:#141824;border:1px solid #1e2535;padding:12px 18px;border-radius:12px;text-align:center}
-  .kpi div{font-size:14px;color:#9bb0c9}
-  .kpi b{font-size:22px;display:block;margin-top:4px}
-  table{width:100%;border-collapse:collapse;margin-top:20px}
-  th,td{padding:8px 10px;border-bottom:1px solid #1e2535;text-align:left;font-size:13px}
+  :root{ --bg:#0b1220; --panel:#141824; --border:#1e2535; --ink:#eaf2ff; --muted:#9bb0c9; --brand:#00e5ff; --ok:#76f1a3; --warn:#ffd166; --err:#ff6b6b }
+  *{box-sizing:border-box}
+  body{margin:0;background:#0b1220;color:var(--ink);font-family:system-ui,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif}
+  header{padding:16px;background:#141824;border-bottom:1px solid var(--border)}
+  h1{margin:0;font-size:20px;color:var(--brand);text-shadow:0 0 6px #00e5ff}
+  .wrap{padding:16px;max-width:1100px;margin:auto}
+  .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
+  @media (max-width: 980px){ .grid{grid-template-columns:1fr} }
+  .card{background:#141824;border:1px solid var(--border);border-radius:14px;box-shadow:0 10px 24px rgba(0,0,0,.35)}
+  .card .head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--border)}
+  .card .head h2{margin:0;font-size:15px;color:#cfe7ff}
+  .card .body{padding:12px}
+  .scanner{min-height:300px;border:1px dashed #37507a;border-radius:12px;overflow:hidden;background:#0b1328}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  select,input[type=file]{background:#0f1524;color:var(--ink);border:1px solid var(--border);border-radius:10px;padding:8px 10px}
+  button{padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:#0f1524;color:var(--ink);cursor:pointer}
+  button.primary{background:linear-gradient(180deg,#0fd6ff,#00b8ff);color:#00202a;border:0;font-weight:600}
+  button.good{background:#103222;border-color:#165c3b;color:#8bf3b9}
+  button.warn{background:#3b2a00;border-color:#5d4400;color:#ffd26e}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--border);border-radius:999px;background:#0f1524;color:#b7c7e3;font-size:12px}
+  .totals{display:flex;gap:12px;flex-wrap:wrap}
+  .kpi{background:#0f1524;border:1px solid var(--border);padding:10px 12px;border-radius:12px}
+  .kpi b{font-size:18px}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;font-size:13px}
   th{color:#a8c4ff}
   tbody tr:hover{background:#0c1426}
-  button{margin-top:10px;padding:10px 14px;border-radius:8px;border:1px solid #1e2535;background:#0f1524;color:#eaf2ff;cursor:pointer}
-  button:hover{background:#152033}
-  .actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:12px}
+  .hint{font-size:12px;color:var(--muted)}
+  .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)}
+  pre{background:#0f1524;border:1px solid var(--border);border-radius:10px;padding:10px;overflow:auto}
+  @media print{ header,.no-print{display:none !important}; body{background:#fff;color:#000} .card{box-shadow:none;border-color:#ddd} }
 </style>
 </head>
 <body>
   <header>
     <h1>ALDISAN – Avance de Escaneo</h1>
-    <div id="status" style="color:#9bb0c9;font-size:12px">Listo</div>
+    <div class="pill" id="status">Listo</div>
   </header>
   <div class="wrap">
-    <div id="reader" class="scanner"></div>
+    <div class="grid">
+      <!-- Panel izq: Escaneo y fallback -->
+      <section class="card">
+        <div class="head"><h2>1) Escaneo (con tolerancia a permisos)</h2></div>
+        <div class="body">
+          <div class="row no-print" style="gap:10px;margin-bottom:10px">
+            <button class="primary" id="btnStart">Iniciar cámara (trasera)</button>
+            <button id="btnStop">Detener cámara</button>
+            <select id="selCamera" title="Cámara" style="min-width:220px"></select>
+            <button id="btnList">Actualizar lista</button>
+          </div>
+          <div id="reader" class="scanner no-print" aria-label="visor de cámara"></div>
+          <div class="row no-print" style="gap:10px;margin:10px 0 4px">
+            <input id="fileInput" type="file" accept="image/*" capture="environment" />
+            <button id="btnScanImg">Escanear desde imagen</button>
+            <button id="btnPaste">Pegar texto/QR</button>
+          </div>
+          <div class="hint">
+            <b>Si ves "NotAllowedError"</b>: el navegador bloqueó la cámara. Prueba abrir el sitio en <b>https</b> (o <b>localhost</b>), revisa permisos del sitio y usa <i>Escanear desde imagen</i> como alternativa.
+          </div>
+        </div>
+      </section>
 
-    <div class="totals">
-      <div class="kpi"><div>Tarimas</div><b id="kTarimas">0</b></div>
-      <div class="kpi"><div>Cajas</div><b id="kCajas">0</b></div>
-      <div class="kpi"><div>Piezas</div><b id="kPiezas">0</b></div>
+      <!-- Panel der: Totales y acciones de reporte -->
+      <section class="card">
+        <div class="head"><h2>2) Avance</h2></div>
+        <div class="body">
+          <div class="totals">
+            <div class="kpi"><div>Tarimas</div><b id="kTarimas">0</b></div>
+            <div class="kpi"><div>Cajas</div><b id="kCajas">0</b></div>
+            <div class="kpi"><div>Piezas</div><b id="kPiezas">0</b></div>
+          </div>
+          <h3 style="margin:12px 0 6px">Resumen por producto</h3>
+          <div style="overflow:auto;max-height:280px;border:1px solid var(--border);border-radius:10px">
+            <table id="tblResumen">
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>Descripción</th>
+                  <th>Lote</th>
+                  <th>Caducidad</th>
+                  <th>Tarimas</th>
+                  <th>Cajas</th>
+                  <th>Piezas</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="row no-print" style="margin-top:10px">
+            <button class="good" id="btnFinalize">Finalizar inventario</button>
+            <button class="warn" id="btnClear">Limpiar borrador</button>
+          </div>
+        </div>
+      </section>
     </div>
 
-    <table>
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>UID</th>
-          <th>Producto</th>
-          <th>Cajas</th>
-          <th>Piezas</th>
-          <th>Hora</th>
-        </tr>
-      </thead>
-      <tbody id="detalle"></tbody>
-    </table>
+    <!-- Detalle -->
+    <section class="card" style="margin-top:16px">
+      <div class="head"><h2>3) Detalle de lecturas</h2></div>
+      <div class="body">
+        <div style="overflow:auto;max-height:420px;border:1px solid var(--border);border-radius:10px">
+          <table id="tblDetalle">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>UID</th>
+                <th>Producto</th>
+                <th>Descripción</th>
+                <th>Lote</th>
+                <th>Caducidad</th>
+                <th>Cajas</th>
+                <th>Piezas</th>
+                <th>Hora</th>
+                <th class="no-print">Acción</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
 
-    <div class="actions">
-      <button onclick="finalizarInventario()">Finalizar inventario</button>
-      <button onclick="clearAll()">Limpiar todo</button>
-    </div>
+    <!-- Tests -->
+    <section class="card no-print" style="margin-top:16px">
+      <div class="head"><h2>4) Pruebas automáticas (no afectan tu borrador)</h2></div>
+      <div class="body">
+        <div class="row" style="gap:10px;margin-bottom:8px">
+          <button id="btnRunTests">Probar / Tests</button>
+          <span class="hint">Ejecuta casos de prueba sin usar la cámara.</span>
+        </div>
+        <pre id="testLog" aria-live="polite" style="max-height:220px"></pre>
+      </div>
+    </section>
   </div>
 
 <script>
 (function(){
-  const keyLS = 'inventario_avance_qr';
-  let scans = loadLS();
-  let html5Qrcode;
+  // ====== Estado & Persistencia ======
+  const LS_DRAFT='inv_qr_draft_v2';
+  const LS_HIST='inv_qr_hist_v2';
+  let scans = loadDraft(); // borrador persistente
+  let html5Qrcode = null;
+  let currentCamId = null;
 
-  function status(msg){ document.getElementById('status').textContent = msg; }
+  const $ = (s)=>document.querySelector(s);
+  const status = (m, cls='')=>{ const el=$('#status'); if(!el) return; el.textContent=m; el.className='pill '+cls; };
+  const esc = (s)=> (s==null?'':String(s)).replace(/[&<>]/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
+  const num = (v)=>{ const n=Number(v); return isFinite(n)? n : 0; };
 
-  function startCamera(){
-    html5Qrcode = new Html5Qrcode("reader");
-    Html5Qrcode.getCameras().then(cameras=>{
-      if(!cameras || cameras.length===0){ status('No se encontró cámara'); return; }
-      // Buscar cámara trasera
-      let backCam = cameras.find(c=>/back|trás|rear|environment/i.test(c.label));
-      const camId = backCam? backCam.id : cameras[0].id;
-      html5Qrcode.start({ deviceId:{ exact: camId } },{ fps:10, qrbox:250 },onScanSuccess);
-      status('Cámara activa (trasera si disponible)');
-    }).catch(()=>status('Error al iniciar cámara'));
+  // Inicializa UI
+  renderAll();
+  populateCameraList();
+
+  // Botones cámara
+  $('#btnStart').addEventListener('click', startPreferredCamera);
+  $('#btnStop').addEventListener('click', stopCamera);
+  $('#btnList').addEventListener('click', populateCameraList);
+  $('#selCamera').addEventListener('change', (e)=>{ currentCamId=e.target.value || null; });
+
+  // Fallbacks
+  $('#btnPaste').addEventListener('click', onPasteText);
+  $('#btnScanImg').addEventListener('click', onScanImage);
+  $('#fileInput').addEventListener('change', ()=>{/* no-op: usar botón Escanear */});
+
+  // Acciones inventario
+  $('#btnClear').addEventListener('click', ()=>{ if(confirm('¿Borrar borrador actual?')){ scans=[]; saveDraft(); renderAll(); status('Borrador limpio','ok'); } });
+  $('#btnFinalize').addEventListener('click', finalizeInventory);
+
+  // Tests
+  $('#btnRunTests').addEventListener('click', runTests);
+
+  // ====== Cámara ======
+  async function populateCameraList(){
+    try{
+      const sel = $('#selCamera'); sel.innerHTML='';
+      const cams = await Html5Qrcode.getCameras();
+      if(!cams || cams.length===0){ sel.innerHTML='<option value="">(sin cámaras)</option>'; status('Sin cámaras detectadas','warn'); return; }
+      // Ordena: back/environment primero
+      cams.sort((a,b)=> scoreCam(b.label)-scoreCam(a.label));
+      for(const c of cams){
+        const opt = document.createElement('option'); opt.value=c.id; opt.textContent=c.label||('Cámara '+c.id.slice(-4));
+        sel.appendChild(opt);
+      }
+      // Prefiere trasera si existe
+      const back = cams.find(c=> /back|rear|environment|trás/i.test(c.label));
+      sel.value = (back? back.id : cams[0].id);
+      currentCamId = sel.value;
+      status('Cámaras listas');
+    }catch(e){
+      status('No se pudieron enumerar cámaras','warn');
+    }
+  }
+  function scoreCam(label=''){
+    const l = label.toLowerCase();
+    if(l.includes('back')||l.includes('rear')||l.includes('environment')||l.includes('trás')) return 2;
+    if(l.includes('front')||l.includes('user')||l.includes('webcam')) return 1;
+    return 0;
   }
 
+  async function startPreferredCamera(){
+    // Chequeos de entorno seguros para evitar NotAllowedError comunes
+    const isSecure = location.protocol==='https:' || location.hostname==='localhost' || location.hostname==='127.0.0.1';
+    if(!isSecure){ status('Advertencia: usa HTTPS o localhost para cámara','warn'); }
+    try{
+      if(html5Qrcode){ await html5Qrcode.stop(); html5Qrcode.clear(); }
+      html5Qrcode = new Html5Qrcode('reader');
+      if(!currentCamId){ await populateCameraList(); }
+      await html5Qrcode.start(
+        { deviceId:{ exact: currentCamId } },
+        { fps:15, qrbox:{width:280,height:280}, aspectRatio:1 },
+        onScanSuccess,
+        (err)=>{ /* silencioso */ }
+      );
+      status('Cámara activa','ok');
+    }catch(e){
+      console.error('startPreferredCamera error', e);
+      if(String(e?.name).includes('NotAllowedError')){
+        status('Permiso denegado: usa HTTPS y habilita cámara. Prueba "Escanear desde imagen".','err');
+      }else{
+        status('No se pudo iniciar cámara: '+(e?.message||e),'err');
+      }
+    }
+  }
+  async function stopCamera(){
+    try{ if(html5Qrcode){ await html5Qrcode.stop(); html5Qrcode.clear(); status('Cámara detenida'); } }
+    catch(e){ status('No se pudo detener'); }
+  }
+
+  // ====== Escaneo ======
   function onScanSuccess(text){
     try{
       const data = parseQR(text);
       addScan(data);
-      status(`OK ▶ UID:${data.uid} · Prod:${data.producto||'—'} · Cajas:${data.cajas} · Pzs:${data.piezas}`);
-    }catch(e){ status('QR inválido'); console.error(e); }
-  }catch(e){ status('QR inválido'); }
+      status(`OK ▶ UID:${data.uid} · Prod:${data.producto||'—'} · Cajas:${data.cajas||0} · Pzs:${data.piezas||0}`,'ok');
+    }catch(e){ console.error(e); status('QR inválido','err'); }
   }
 
+  async function onScanImage(){
+    const f = $('#fileInput').files?.[0];
+    if(!f) return alert('Selecciona una imagen primero');
+    try{
+      const reader = html5Qrcode || new Html5Qrcode('reader');
+      const result = await reader.scanFile(f, true); // muestra imagen
+      onScanSuccess(result);
+    }catch(e){ console.error(e); alert('No se pudo leer el QR de la imagen'); }
+  }
+
+  async function onPasteText(){
+    try{
+      const clip = await navigator.clipboard.readText();
+      if(!clip) return alert('Portapapeles vacío');
+      onScanSuccess(clip);
+    }catch(e){
+      const raw = prompt('Pega aquí el contenido del QR');
+      if(raw) onScanSuccess(raw);
+    }
+  }
+
+  // ====== Parser robusto ======
   function parseQR(text){
     const raw = String(text||'').trim();
-    // 1) JSON directo
+    // 1) JSON
     try{ return normalize(JSON.parse(raw)); }catch{}
-    // 2) URL con query (?a=1&b=2) o hash (#a=1&b=2)
-    try{
-      const u = new URL(raw);
-      const obj = {};
-      u.searchParams.forEach((v,k)=>{ obj[k.toLowerCase()] = v; });
-      if(Object.keys(obj).length>0) return normalize(obj);
-    }catch{}
-    // 2b) Cadena estilo query sin protocolo
-    if(/[=&]/.test(raw)){
-      const obj = {};
-      const qs = raw.replace(/^[^?]*\?/, '');
-      const sp = new URLSearchParams(qs);
-      sp.forEach((v,k)=>{ obj[k.toLowerCase()] = v; });
-      if(Object.keys(obj).length>0) return normalize(obj);
-    }
-    // 3) Pares clave=valor o clave:valor separados por ; , | & o saltos de línea
-    const objKV = {};
-    raw.split(/[\n;&|,]+/).map(s=>s.trim()).filter(Boolean).forEach(p=>{
-      const m = p.match(/^([^:=]+)[:=](.*)$/);
-      if(m){ objKV[m[1].trim().toLowerCase()] = m[2].trim(); }
-    });
-    if(Object.keys(objKV).length>0) return normalize(objKV);
-    // 4) Solo números (EAN/UPC)
+    // 2) URL con query (?a=1&b=2)
+    try{ const u=new URL(raw); const obj={}; u.searchParams.forEach((v,k)=>obj[k.toLowerCase()]=v); if(Object.keys(obj).length) return normalize(obj); }catch{}
+    // 2b) query suelta a=1&b=2
+    if(/[=&]/.test(raw)){ const obj={}; const qs=raw.replace(/^[^?]*\?/,''); const sp=new URLSearchParams(qs); sp.forEach((v,k)=>obj[k.toLowerCase()]=v); if(Object.keys(obj).length) return normalize(obj); }
+    // 3) clave=valor o clave:valor separados por ; , | & o saltos de línea
+    const objKV={}; raw.split(/[\n;&|,]+/).map(s=>s.trim()).filter(Boolean).forEach(p=>{ const m=p.match(/^([^:=]+)[:=](.*)$/); if(m){ objKV[m[1].trim().toLowerCase()]=m[2].trim(); } }); if(Object.keys(objKV).length) return normalize(objKV);
+    // 4) Solo números = EAN
     if(/^[0-9]{8,14}$/.test(raw)) return normalize({ ean: raw });
-    // 5) Intento de Base64 -> JSON
-    try{ const decoded = atob(raw); return normalize(JSON.parse(decoded)); }catch{}
+    // 5) Base64 -> JSON
+    try{ const decoded=atob(raw); return normalize(JSON.parse(decoded)); }catch{}
     throw new Error('Formato no reconocido');
-  }catch{}
-    const obj={};
-    text.split(/[;\n]+/).forEach(p=>{ const [k,...r]=p.split('='); if(k) obj[k.trim().toLowerCase()]=r.join('=')?.trim(); });
-    return normalize(obj);
   }
-
   function normalize(o){
-    const lower = {};
-    Object.keys(o||{}).forEach(k=> lower[String(k).toLowerCase()] = o[k]);
-    const g = (...keys)=>{ for(const k of keys){ const v = lower[k]; if(v!=null && String(v).trim()!=='') return String(v).trim(); } return ''; };
-    const n = (...keys)=>{ for(const k of keys){ if(lower[k]!=null){ const v = String(lower[k]).replace(/[^0-9.\-]/g,''); const num = Number(v); if(isFinite(num)) return num; } } return 0; };
+    const lower={}; Object.keys(o||{}).forEach(k=> lower[String(k).toLowerCase()]=o[k]);
+    const g=(...keys)=>{ for(const k of keys){ const v=lower[k]; if(v!=null && String(v).trim()!=='') return String(v).trim(); } return ''; };
+    const n=(...keys)=>{ for(const k of keys){ if(lower[k]!=null){ const v=String(lower[k]).replace(/[^0-9.\-]/g,''); const num=Number(v); if(isFinite(num)) return num; } } return 0; };
 
     const uid = g('uid','id','folio','tarima','serie','qr','uuid') || ('UID-'+Date.now());
     const producto = g('producto','ean','upc','codigo','código','sku','id_producto','articulo','artículo');
+    const descripcion = g('descripcion','descripción','desc','nombre');
     const piezasCaja = n('piezascaja','piezas_caja','pzsxcaja','pzasxcaja','pxc','pcsxcaja');
     let cajas = n('cajas','bx','cajas_totales','cajastotales');
     let piezas = n('piezas','pz','cantidad','qty','piezas_totales','total_piezas');
     if(!piezas && cajas && piezasCaja) piezas = cajas * piezasCaja;
-    if(!cajas && piezas && piezasCaja) cajas = Math.round(piezas / (piezasCaja || 1));
+    if(!cajas && piezas && piezasCaja) cajas = Math.round(piezas / (piezasCaja||1));
     const lote = g('lote','lot');
     const caducidad = g('caducidad','expira','exp','fecha_cad','fecha_caducidad','fcad');
 
-    return { uid, producto, cajas, piezas, lote, caducidad, ts:new Date().toISOString() };
-  };
+    return { uid, producto, descripcion, cajas, piezas, lote, caducidad, ts:new Date().toISOString() };
   }
 
+  // ====== Modelo de datos ======
   function addScan(obj){
-    scans.push(obj);
-    saveLS();
-    render();
+    scans.push(obj); // duplicados permitidos
+    saveDraft();
+    renderAll();
+  }
+  function groupBy(){
+    const map=new Map();
+    for(const s of scans){
+      const key = (s.producto||'')+'|'+(s.lote||'')+'|'+(s.caducidad||'');
+      const acc = map.get(key)||{producto:s.producto,descripcion:s.descripcion,lote:s.lote,caducidad:s.caducidad,tarimas:0,cajas:0,piezas:0};
+      acc.tarimas += 1; acc.cajas += num(s.cajas); acc.piezas += num(s.piezas);
+      if((s.descripcion||'').length>(acc.descripcion||'').length) acc.descripcion=s.descripcion;
+      map.set(key,acc);
+    }
+    return [...map.values()];
+  }
+  function kpis(){
+    return {
+      tarimas: scans.length,
+      cajas: scans.reduce((a,b)=>a+num(b.cajas),0),
+      piezas: scans.reduce((a,b)=>a+num(b.piezas),0)
+    };
   }
 
-  function render(){
-    document.getElementById('kTarimas').textContent=scans.length;
-    document.getElementById('kCajas').textContent=scans.reduce((a,b)=>a+b.cajas,0);
-    document.getElementById('kPiezas').textContent=scans.reduce((a,b)=>a+b.piezas,0);
-    document.getElementById('detalle').innerHTML=scans.map((s,i)=>`<tr><td>${i+1}</td><td>${s.uid}</td><td>${s.producto}</td><td>${s.cajas}</td><td>${s.piezas}</td><td>${new Date(s.ts).toLocaleTimeString()}</td></tr>`).join('');
+  // ====== Render ======
+  function renderAll(){
+    const k=kpis();
+    $('#kTarimas').textContent=k.tarimas;
+    $('#kCajas').textContent=k.cajas;
+    $('#kPiezas').textContent=k.piezas;
+
+    $('#tblDetalle tbody').innerHTML = scans.map((s,i)=>`<tr>
+      <td>${i+1}</td>
+      <td>${esc(s.uid)}</td>
+      <td>${esc(s.producto||'')}</td>
+      <td>${esc(s.descripcion||'')}</td>
+      <td>${esc(s.lote||'')}</td>
+      <td>${esc(s.caducidad||'')}</td>
+      <td>${num(s.cajas)}</td>
+      <td>${num(s.piezas)}</td>
+      <td>${new Date(s.ts).toLocaleTimeString()}</td>
+      <td class="no-print"><button onclick="__app.del(${i})">Eliminar</button></td>
+    </tr>`).join('');
+
+    const resumen = groupBy();
+    $('#tblResumen tbody').innerHTML = resumen.map(r=>`<tr>
+      <td>${esc(r.producto||'')}</td>
+      <td>${esc(r.descripcion||'')}</td>
+      <td>${esc(r.lote||'')}</td>
+      <td>${esc(r.caducidad||'')}</td>
+      <td>${r.tarimas}</td>
+      <td>${r.cajas}</td>
+      <td>${r.piezas}</td>
+    </tr>`).join('');
   }
 
-  function saveLS(){ localStorage.setItem(keyLS, JSON.stringify(scans)); }
-  function loadLS(){ try{ return JSON.parse(localStorage.getItem(keyLS)||'[]'); }catch{ return []; } }
-
-  window.clearAll=function(){ scans=[]; saveLS(); render(); }
-
-  window.finalizarInventario=function(){
-    alert('Inventario finalizado. Total Tarimas: '+scans.length+' | Cajas: '+scans.reduce((a,b)=>a+b.cajas,0)+' | Piezas: '+scans.reduce((a,b)=>a+b.piezas,0));
-    scans=[];
-    saveLS();
-    render();
+  // ====== Persistencia ======
+  function saveDraft(){ try{ localStorage.setItem(LS_DRAFT, JSON.stringify(scans)); }catch(e){} }
+  function loadDraft(){ try{ const s=localStorage.getItem(LS_DRAFT); return s? JSON.parse(s): []; }catch(e){ return []; } }
+  function pushHistory(entry){
+    try{ const raw=localStorage.getItem(LS_HIST); const arr=raw? JSON.parse(raw): []; arr.push(entry); localStorage.setItem(LS_HIST, JSON.stringify(arr)); }
+    catch(e){ console.warn('No se pudo guardar historial',e); }
   }
 
-  startCamera();
-  render();
+  function finalizeInventory(){
+    if(scans.length===0){ alert('No hay lecturas para finalizar'); return; }
+    const payload={
+      createdAt:new Date().toISOString(),
+      totalTarimas: scans.length,
+      totalCajas: scans.reduce((a,b)=>a+num(b.cajas),0),
+      totalPiezas: scans.reduce((a,b)=>a+num(b.piezas),0),
+      items: scans
+    };
+    pushHistory(payload);
+    scans=[]; saveDraft(); renderAll();
+    status('Inventario finalizado y guardado en historial','ok');
+    alert('Inventario finalizado. Tarimas: '+payload.totalTarimas+' | Cajas: '+payload.totalCajas+' | Piezas: '+payload.totalPiezas);
+  }
+
+  // Exponer acciones fila
+  window.__app = { del:(i)=>{ scans.splice(i,1); saveDraft(); renderAll(); } };
+
+  // ====== Tests (no mutan tu borrador) ======
+  function runTests(){
+    const log=$('#testLog');
+    const cases=[
+      {name:'JSON con cajas×piezasCaja', input: JSON.stringify({uid:'T-1', ean:'7501234567890', cajas:10, piezasCaja:24}), expect:{tarimas:1,cajas:10,piezas:240}},
+      {name:'KV con piezas directas', input:'UID=ABC; producto=88888888; piezas=50', expect:{tarimas:1,cajas:0,piezas:50}},
+      {name:'URL con query', input:'https://x.test/?uid=U-3&ean=12345678&cajas=5&piezasCaja=10', expect:{tarimas:1,cajas:5,piezas:50}},
+    ];
+    const tmp=[]; // acumulador de prueba
+    let pass=0;
+    for(const tc of cases){
+      const obj=parseQR(tc.input); tmp.push(obj);
+      const k={
+        tarimas: tmp.length,
+        cajas: tmp.reduce((a,b)=>a+num(b.cajas),0),
+        piezas: tmp.reduce((a,b)=>a+num(b.piezas),0)
+      };
+      const ok = (k.tarimas===tc.expect.tarimas && k.cajas===tc.expect.cajas && k.piezas===tc.expect.piezas);
+      pass+= ok?1:0;
+      log.textContent += `\n[${ok?'OK':'FAIL'}] ${tc.name} => `+JSON.stringify(k)+` esperado `+JSON.stringify(tc.expect);
+    }
+    if(pass===cases.length){ log.textContent += "\n\nTodas las pruebas pasaron ✔"; status('Tests OK','ok'); }
+    else{ log.textContent += "\n\nAlgunas pruebas fallaron ✖"; status('Revisa el log de pruebas','warn'); }
+  }
+
 })();
 </script>
 </body>
