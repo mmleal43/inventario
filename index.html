@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>ALDISAN-KSK · Inventario por QR (cámara nativa + jsQR con feedback)</title>
+  <title>ALDISAN-KSK · Inventario por QR (cámara nativa + jsQR + catálogo)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root{--bg:#0b1220;--panel:#141824;--border:#1e2535;--ink:#eaf2ff;--muted:#9bb0c9;--brand:#00e5ff}
@@ -20,11 +20,11 @@
     th,td{border:1px solid var(--border);padding:8px 10px;text-align:left}
     th{background:#141824;color:#9bb0c9}
     .actions{margin:10px 0;display:flex;gap:10px;flex-wrap:wrap}
-    button,select{padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:#0f1524;color:var(--ink);cursor:pointer}
+    button,select,input{padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:#0f1524;color:var(--ink);cursor:pointer}
     button.primary{background:var(--brand);color:#00131a;font-weight:700;border:none}
+    input[type=text]{flex:1;min-width:220px}
     .pill{display:inline-block;padding:6px 10px;background:#0f1524;border:1px solid var(--border);border-radius:999px;font-size:12px;color:var(--muted);margin:4px}
     .banner{display:none;margin:8px auto 0;max-width:1100px;padding:10px 12px;border-radius:10px;border:1px solid #7b2b2b;background:#2a0f12;color:#ffd8d8}
-    .ok{color:#7bf0a8}
   </style>
 </head>
 <body>
@@ -35,7 +35,6 @@
 
   <div id="permBanner" class="banner">
     <b>Permiso de cámara denegado.</b> Ve al candado de la barra de direcciones → Permisos → <i>Cámara</i> → <b>Permitir</b>, y recarga.
-    <span id="permHelp"></span>
   </div>
 
   <div class="wrap">
@@ -49,13 +48,17 @@
       <div class="actions">
         <button id="btnStart" class="primary">Iniciar cámara</button>
         <button id="btnStop">Detener cámara</button>
-        <select id="facing">
-          <option value="environment">Trasera</option>
-          <option value="user">Frontal</option>
-        </select>
+        <select id="facing"><option value="environment">Trasera</option><option value="user">Frontal</option></select>
         <input id="fileInput" type="file" accept="image/*" capture="environment" style="display:none" />
         <button id="btnScanImg">Escanear desde imagen</button>
         <button id="btnPaste">Pegar texto QR</button>
+      </div>
+      <div class="actions">
+        <input id="barcodeInput" type="text" placeholder="Teclear código de barras / EAN" />
+        <button id="btnAddBarcode" class="primary">Agregar por código</button>
+        <input id="catalogFile" type="file" accept=".csv,.tsv" style="display:none" />
+        <button id="btnLoadCatalog">Cargar catálogo</button>
+        <span class="pill">Catálogo: <b id="catCount">0</b> items</span>
       </div>
     </section>
 
@@ -65,24 +68,12 @@
       <div class="pill">Cajas: <b id="totalCajas">0</b></div>
       <div class="pill">Piezas: <b id="totalPiezas">0</b></div>
       <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>ID</th>
-            <th>Descripción</th>
-            <th>Lote</th>
-            <th>Caducidad</th>
-            <th>Cajas</th>
-            <th>Pz x Caja</th>
-            <th>Pz x Tarima</th>
-          </tr>
-        </thead>
+        <thead><tr><th>#</th><th>ID</th><th>Descripción</th><th>Lote</th><th>Caducidad</th><th>Cajas</th><th>Pz x Caja</th><th>Pz x Tarima</th></tr></thead>
         <tbody id="tbody"></tbody>
       </table>
       <div class="actions">
         <button id="btnExport" class="primary">Exportar Excel</button>
         <button id="btnClear">Finalizar / Limpiar</button>
-        <button id="btnTests">Probar parser</button>
       </div>
     </section>
   </div>
@@ -90,138 +81,133 @@
 <script src="https://unpkg.com/jsqr/dist/jsQR.js"></script>
 <script>
 const $=s=>document.querySelector(s);
-const LS='aldisan_inv_v7_feedback';
-let state = load() || { scans:[], totals:{ tarimas:0,cajas:0,piezas:0 } };
-let stream=null, raf=null, scanning=false;
+const LS='aldisan_inv_v8_cat';
+const LS_CAT='aldisan_catalog_v1';
+let state=load()||{scans:[],totals:{tarimas:0,cajas:0,piezas:0}};
+let catalog=loadCatalog()||{byCode:{},count:0};
+let stream=null,raf=null,scanning=false;
 
 const video=$('#video');
 const overlay=$('#overlay');
 const octx=overlay.getContext('2d');
 const beep=new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA=');
 
-function save(){ localStorage.setItem(LS, JSON.stringify(state)); }
-function load(){ try{ const raw=localStorage.getItem(LS); return raw? JSON.parse(raw): null; }catch{ return null; } }
-function esc(s){ return String(s==null?'':s); }
+function save(){localStorage.setItem(LS,JSON.stringify(state));}
+function load(){try{const raw=localStorage.getItem(LS);return raw?JSON.parse(raw):null;}catch{return null;}}
+function saveCatalog(){localStorage.setItem(LS_CAT,JSON.stringify(catalog));}
+function loadCatalog(){try{const raw=localStorage.getItem(LS_CAT);return raw?JSON.parse(raw):null;}catch{return null;}}
+function esc(s){return String(s==null?'':s);}
+
 function render(){
-  $('#totalTarimas').textContent=state.totals.tarimas;
-  $('#totalCajas').textContent=state.totals.cajas;
-  $('#totalPiezas').textContent=state.totals.piezas;
-  const tb=$('#tbody'); tb.innerHTML='';
-  state.scans.forEach((s,i)=>{
-    const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${i+1}</td><td>${esc(s.id)}</td><td>${esc(s.descripcion)}</td><td>${esc(s.lote)}</td><td>${esc(s.caducidad)}</td><td>${s.cajas}</td><td>${s.pzcaja}</td><td>${s.pztarima}</td>`;
-    tb.appendChild(tr);
-  });
+ $('#totalTarimas').textContent=state.totals.tarimas;
+ $('#totalCajas').textContent=state.totals.cajas;
+ $('#totalPiezas').textContent=state.totals.piezas;
+ $('#catCount').textContent=catalog.count||0;
+ const tb=$('#tbody');tb.innerHTML='';
+ state.scans.forEach((s,i)=>{
+   const tr=document.createElement('tr');
+   tr.innerHTML=`<td>${i+1}</td><td>${esc(s.id)}</td><td>${esc(s.descripcion)}</td><td>${esc(s.lote)}</td><td>${esc(s.caducidad)}</td><td>${s.cajas}</td><td>${s.pzcaja}</td><td>${s.pztarima}</td>`;
+   tb.appendChild(tr);
+ });
 }
 
 function parseRecord(text){
   const raw=String(text||'');
   const tsv=raw.replace(/\r|␍/g,'').replace(/⇥/g,'\t');
-  const parts = tsv.split(/\t/);
+  const parts=tsv.split(/\t/);
   if(parts.length>=6){
-    const id = (parts[2]||'').trim();
-    const descripcion = (parts[3]||'').trim();
-    const lote = (parts[4]||'').trim();
-    const caducidad = (parts[5]||'').trim();
-    const cajas = Number(parts[6]||0) || 0;
-    const pzcaja = Number(parts[7]||0) || 0;
-    const piezas = Number(parts[8]||0) || 0;
-    const pztarima = piezas || (cajas * pzcaja);
-    return { id, descripcion, lote, caducidad, cajas, pzcaja, pztarima, raw };
+    const id=(parts[2]||'').trim();
+    const descripcion=(parts[3]||'').trim();
+    const lote=(parts[4]||'').trim();
+    const caducidad=(parts[5]||'').trim();
+    const cajas=Number(parts[6]||0)||0;
+    const pzcaja=Number(parts[7]||0)||0;
+    const piezas=Number(parts[8]||0)||0;
+    const pztarima=piezas||(cajas*pzcaja);
+    return {id,descripcion,lote,caducidad,cajas,pzcaja,pztarima,raw};
   }
-  return { id:'', descripcion:'', lote:'', caducidad:'', cajas:0, pzcaja:0, pztarima:0, raw };
+  return {id:'',descripcion:'',lote:'',caducidad:'',cajas:0,pzcaja:0,pztarima:0,raw};
 }
 
 function addScanText(txt){
   const rec=parseRecord(txt);
-  state.scans.push({...rec, ts:Date.now()});
+  state.scans.push({...rec,ts:Date.now()});
   state.totals.tarimas++;
   state.totals.cajas+=rec.cajas;
   state.totals.piezas+=rec.pztarima;
-  save(); render();
-  if(navigator.vibrate) navigator.vibrate(200);
-  try{beep.currentTime=0; beep.play();}catch{}
+  save();render();
+  if(navigator.vibrate)navigator.vibrate(200);
+  try{beep.currentTime=0;beep.play();}catch{}
 }
 
-function showPermBanner(){
-  const b=$('#permBanner'); if(!b) return; b.style.display='block';
+function addByBarcode(){
+  const code=$('#barcodeInput').value.trim();
+  if(!code)return alert('Escribe un código de barras / EAN');
+  const hit=catalog.byCode[code];
+  if(!hit)return alert('Código no encontrado en catálogo');
+  const lote=prompt('Lote:','')||'';
+  const cad=prompt('Caducidad (YYYY-MM-DD):','')||'';
+  const cajas=Number(prompt('Cajas en esta tarima:','0')||0)||0;
+  const pztarima=cajas*hit.pzcaja;
+  const rec={id:hit.id,descripcion:hit.descripcion,lote:lot, caducidad:cad,cajas,pzcaja:hit.pzcaja,pztarima,raw:code};
+  state.scans.push({...rec,ts:Date.now()});
+  state.totals.tarimas++;
+  state.totals.cajas+=cajas;
+  state.totals.piezas+=pztarima;
+  save();render();
 }
+
+function parseCatalog(text){
+  const lines=text.trim().split(/\n+/);
+  if(lines.length<2)return{byCode:{},count:0};
+  const sep=(lines[0].includes('\t')?'\t':',');
+  const headers=lines[0].split(sep).map(h=>h.trim().toLowerCase());
+  const idx={id:headers.findIndex(h=>h.startsWith('id')),cb:headers.findIndex(h=>h.startsWith('cb')||h.includes('codigo')),desc:headers.findIndex(h=>h.startsWith('desc')),pzcaja:headers.findIndex(h=>h.includes('pieza')),cajas:headers.findIndex(h=>h.includes('caj'))};
+  const byCode={};let count=0;
+  for(let i=1;i<lines.length;i++){
+    const cols=lines[i].split(sep);
+    const id=cols[idx.id]||'';
+    const code=cols[idx.cb]||id;
+    const descripcion=cols[idx.desc]||'';
+    const pzcaja=Number(cols[idx.pzcaja]||0)||0;
+    byCode[code]={id,descripcion,pzcaja};
+    count++;
+  }
+  return{byCode,count};
+}
+
+$('#btnLoadCatalog').onclick=()=>$('#catalogFile').click();
+$('#catalogFile').onchange=()=>{
+  const f=$('#catalogFile').files?.[0];if(!f)return;
+  const reader=new FileReader();
+  reader.onload=e=>{catalog=parseCatalog(e.target.result);saveCatalog();render();};
+  reader.readAsText(f);
+};
 
 async function startCamera(){
-  $('#status').textContent='Iniciando cámara…';
-  try{
-    await stopCamera();
-    const facing=$('#facing').value||'environment';
-    stream=await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:facing } }, audio:false });
-    video.srcObject=stream; await video.play();
-    overlay.width=video.videoWidth||640; overlay.height=video.videoHeight||480;
-    scanning=true; tick();
-    $('#status').textContent='Cámara activa';
-  }catch(e){
-    if(e && e.name==='NotAllowedError') showPermBanner();
-    $('#status').textContent='No se pudo iniciar cámara: '+(e.name||'')+' '+(e.message||e);
-  }
-}
+  try{await stopCamera();const facing=$('#facing').value||'environment';
+  stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing}},audio:false});
+  video.srcObject=stream;await video.play();overlay.width=video.videoWidth||640;overlay.height=video.videoHeight||480;
+  scanning=true;tick();$('#status').textContent='Cámara activa';}catch(e){$('#status').textContent='Error cámara: '+e;}}
 
-async function stopCamera(){
-  scanning=false; if(raf) cancelAnimationFrame(raf);
-  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
-  video.pause(); video.srcObject=null;
-  $('#status').textContent='Cámara detenida';
-}
+async function stopCamera(){scanning=false;if(raf)cancelAnimationFrame(raf);if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}video.pause();video.srcObject=null;$('#status').textContent='Cámara detenida';}
 
-function drawBox(loc){
-  if(!loc) return;
-  const pts=[loc.topLeftCorner,loc.topRightCorner,loc.bottomRightCorner,loc.bottomLeftCorner];
-  octx.clearRect(0,0,overlay.width,overlay.height);
-  octx.beginPath(); octx.moveTo(pts[0].x,pts[0].y);
-  for(let i=1;i<pts.length;i++) octx.lineTo(pts[i].x,pts[i].y);
-  octx.closePath(); octx.lineWidth=3; octx.strokeStyle='#00e5ff'; octx.stroke();
-}
-
-function tick(){
-  if(!scanning) return;
-  try{
-    const w=overlay.width,h=overlay.height;
-    octx.drawImage(video,0,0,w,h);
-    const img=octx.getImageData(0,0,w,h);
-    const res=window.jsQR?jsQR(img.data,img.width,img.height,{inversionAttempts:"attemptBoth"}):null;
-    if(res&&res.data){
-      drawBox(res.location);
-      addScanText(res.data);
-      scanning=false;
-      setTimeout(()=>{octx.clearRect(0,0,w,h);scanning=true;tick();},1200);
-    }
-  }catch{}
-  raf=requestAnimationFrame(tick);
-}
-
-$('#btnScanImg').onclick=()=>$('#fileInput').click();
-$('#fileInput').onchange=()=>{
-  const f=$('#fileInput').files?.[0]; if(!f) return;
-  const img=new Image(); img.onload=()=>{
-    overlay.width=img.width; overlay.height=img.height; octx.drawImage(img,0,0);
-    let txt=null; try{const d=octx.getImageData(0,0,overlay.width,overlay.height); const r=jsQR?jsQR(d.data,d.width,d.height):null; if(r&&r.data) txt=r.data;}catch{}
-    if(txt) addScanText(txt); else alert('No se encontró un QR en la imagen');
-  }; img.src=URL.createObjectURL(f);
-};
-$('#btnPaste').onclick=async()=>{
-  try{const txt=await navigator.clipboard.readText(); if(txt) addScanText(txt); else alert('Portapapeles vacío');}
-  catch{const raw=prompt('Pega aquí el texto del QR'); if(raw) addScanText(raw);}
-};
-
-function exportCSV(){
-  const aoa=[["ALDISAN-KSK INVENTARIO"],[],["Tarimas",state.totals.tarimas],["Cajas",state.totals.cajas],["Piezas",state.totals.piezas],[],["#","ID","Descripción","Lote","Caducidad","Cajas","Pz x Caja","Pz x Tarima"]];
-  state.scans.forEach((s,i)=>{aoa.push([i+1,s.id,s.descripcion,s.lote,s.caducidad,s.cajas,s.pzcaja,s.pztarima]);});
-  const csv=aoa.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
-  const blob=new Blob([csv],{type:'text/csv'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='inventario_'+Date.now()+'.csv'; a.click();
-}
+function tick(){if(!scanning)return;try{octx.drawImage(video,0,0,overlay.width,overlay.height);const img=octx.getImageData(0,0,overlay.width,overlay.height);const res=jsQR?jsQR(img.data,img.width,img.height,{inversionAttempts:'attemptBoth'}):null;if(res&&res.data){addScanText(res.data);scanning=false;setTimeout(()=>{scanning=true;tick();},1200);}}catch{}raf=requestAnimationFrame(tick);}
 
 $('#btnStart').onclick=startCamera;
 $('#btnStop').onclick=stopCamera;
-$('#btnExport').onclick=exportCSV;
-$('#btnClear').onclick=()=>{ if(confirm('¿Finalizar y limpiar inventario?')){ state={scans:[],totals:{tarimas:0,cajas:0,piezas:0}}; save(); render(); $('#status').textContent='Inventario limpio'; } };
+$('#btnScanImg').onclick=()=>$('#fileInput').click();
+$('#fileInput').onchange=()=>{const f=$('#fileInput').files?.[0];if(!f)return;const img=new Image();img.onload=()=>{overlay.width=img.width;overlay.height=img.height;octx.drawImage(img,0,0);let txt=null;try{const d=octx.getImageData(0,0,overlay.width,overlay.height);const r=jsQR?jsQR(d.data,d.width,d.height):null;if(r&&r.data)txt=r.data;}catch{}if(txt)addScanText(txt);else alert('No QR detectado');};img.src=URL.createObjectURL(f);};
+$('#btnPaste').onclick=async()=>{try{const txt=await navigator.clipboard.readText();if(txt)addScanText(txt);else alert('Portapapeles vacío');}catch{const raw=prompt('Pega aquí el texto del QR');if(raw)addScanText(raw);}};
+$('#btnAddBarcode').onclick=addByBarcode;
+$('#btnExport').onclick=()=>{
+ const aoa=[["ALDISAN-KSK INVENTARIO"],[],["Tarimas",state.totals.tarimas],["Cajas",state.totals.cajas],["Piezas",state.totals.piezas],[],["#","ID","Descripción","Lote","Caducidad","Cajas","Pz x Caja","Pz x Tarima"]];
+ state.scans.forEach((s,i)=>aoa.push([i+1,s.id,s.descripcion,s.lote,s.caducidad,s.cajas,s.pzcaja,s.pztarima]));
+ const csv=aoa.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+ const blob=new Blob([csv],{type:'text/csv'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='inventario_'+Date.now()+'.csv';a.click();
+};
+$('#btnClear').onclick=()=>{if(confirm('¿Finalizar y limpiar inventario?')){state={scans:[],totals:{tarimas:0,cajas:0,piezas:0}};save();render();$('#status').textContent='Inventario limpio';}};
 
 render();
 </script>
