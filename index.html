@@ -84,23 +84,66 @@
     try{
       const data = parseQR(text);
       addScan(data);
-    }catch(e){ status('QR inválido'); }
+      status(`OK ▶ UID:${data.uid} · Prod:${data.producto||'—'} · Cajas:${data.cajas} · Pzs:${data.piezas}`);
+    }catch(e){ status('QR inválido'); console.error(e); }
+  }catch(e){ status('QR inválido'); }
   }
 
   function parseQR(text){
-    try{ return normalize(JSON.parse(text)); }catch{}
+    const raw = String(text||'').trim();
+    // 1) JSON directo
+    try{ return normalize(JSON.parse(raw)); }catch{}
+    // 2) URL con query (?a=1&b=2) o hash (#a=1&b=2)
+    try{
+      const u = new URL(raw);
+      const obj = {};
+      u.searchParams.forEach((v,k)=>{ obj[k.toLowerCase()] = v; });
+      if(Object.keys(obj).length>0) return normalize(obj);
+    }catch{}
+    // 2b) Cadena estilo query sin protocolo
+    if(/[=&]/.test(raw)){
+      const obj = {};
+      const qs = raw.replace(/^[^?]*\?/, '');
+      const sp = new URLSearchParams(qs);
+      sp.forEach((v,k)=>{ obj[k.toLowerCase()] = v; });
+      if(Object.keys(obj).length>0) return normalize(obj);
+    }
+    // 3) Pares clave=valor o clave:valor separados por ; , | & o saltos de línea
+    const objKV = {};
+    raw.split(/[\n;&|,]+/).map(s=>s.trim()).filter(Boolean).forEach(p=>{
+      const m = p.match(/^([^:=]+)[:=](.*)$/);
+      if(m){ objKV[m[1].trim().toLowerCase()] = m[2].trim(); }
+    });
+    if(Object.keys(objKV).length>0) return normalize(objKV);
+    // 4) Solo números (EAN/UPC)
+    if(/^[0-9]{8,14}$/.test(raw)) return normalize({ ean: raw });
+    // 5) Intento de Base64 -> JSON
+    try{ const decoded = atob(raw); return normalize(JSON.parse(decoded)); }catch{}
+    throw new Error('Formato no reconocido');
+  }catch{}
     const obj={};
     text.split(/[;\n]+/).forEach(p=>{ const [k,...r]=p.split('='); if(k) obj[k.trim().toLowerCase()]=r.join('=')?.trim(); });
     return normalize(obj);
   }
 
   function normalize(o){
-    const uid=o.uid||Date.now();
-    const producto=o.producto||o.ean||'';
-    const cajas=Number(o.cajas||0);
-    const piezasCaja=Number(o.piezascaja||o.pxc||0);
-    const piezas=Number(o.piezas||o.cantidad||cajas*piezasCaja||0);
-    return {uid,producto,cajas,piezas,ts:new Date().toISOString()};
+    const lower = {};
+    Object.keys(o||{}).forEach(k=> lower[String(k).toLowerCase()] = o[k]);
+    const g = (...keys)=>{ for(const k of keys){ const v = lower[k]; if(v!=null && String(v).trim()!=='') return String(v).trim(); } return ''; };
+    const n = (...keys)=>{ for(const k of keys){ if(lower[k]!=null){ const v = String(lower[k]).replace(/[^0-9.\-]/g,''); const num = Number(v); if(isFinite(num)) return num; } } return 0; };
+
+    const uid = g('uid','id','folio','tarima','serie','qr','uuid') || ('UID-'+Date.now());
+    const producto = g('producto','ean','upc','codigo','código','sku','id_producto','articulo','artículo');
+    const piezasCaja = n('piezascaja','piezas_caja','pzsxcaja','pzasxcaja','pxc','pcsxcaja');
+    let cajas = n('cajas','bx','cajas_totales','cajastotales');
+    let piezas = n('piezas','pz','cantidad','qty','piezas_totales','total_piezas');
+    if(!piezas && cajas && piezasCaja) piezas = cajas * piezasCaja;
+    if(!cajas && piezas && piezasCaja) cajas = Math.round(piezas / (piezasCaja || 1));
+    const lote = g('lote','lot');
+    const caducidad = g('caducidad','expira','exp','fecha_cad','fecha_caducidad','fcad');
+
+    return { uid, producto, cajas, piezas, lote, caducidad, ts:new Date().toISOString() };
+  };
   }
 
   function addScan(obj){
