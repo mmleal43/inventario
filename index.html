@@ -3,9 +3,12 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ALDISAN – Avance de Escaneo (Fix cámara)</title>
+<title>ALDISAN – Avance de Escaneo (fix: carga robusta de html5-qrcode)</title>
 
-<script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js" type="text/javascript"></script>
+<!-- 1) INTENTO #1: unpkg -->
+<script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js" defer></script>
+<!-- 2) INTENTO #2: jsDelivr (fallback). Si el de arriba falla, este debería proveer Html5Qrcode en window -->
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.10/minified/html5-qrcode.min.js" defer></script>
 
 <style>
   body{margin:0;background:#0b1220;color:#eaf2ff;font-family:system-ui,Segoe UI,Roboto,sans-serif}
@@ -14,6 +17,8 @@
   .wrap{padding:16px;max-width:1100px;margin:auto}
   .scanner{position:relative;min-height:320px;border:1px dashed #37507a;border-radius:12px;background:#0b1328}
   .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid #1e2535;border-radius:999px;background:#0f1524;color:#b7c7e3;font-size:12px}
+  button{padding:10px 14px;border-radius:10px;border:1px solid #1e2535;background:#0f1524;color:#eaf2ff;cursor:pointer}
+  button:hover{background:#152033}
 </style>
 </head>
 <body>
@@ -26,6 +31,7 @@
     <button id="btnStop">Detener cámara</button>
     <select id="selCamera"></select>
     <div id="reader" class="scanner"></div>
+    <p style="font-size:12px;color:#9bb0c9;margin-top:8px">Si aparece "NotAllowedError" o no se abre, verifica estar en <b>HTTPS</b> o <b>localhost</b> y haber permitido el uso de cámara.</p>
   </div>
 
 <script>
@@ -34,30 +40,45 @@
   const $=s=>document.querySelector(s);
   const status=(m)=>{$('#status').textContent=m;};
 
+  // Esperar a que los <script defer> terminen y la clase esté disponible
+  async function ensureLib(retries=10){
+    for(let i=0;i<retries;i++){
+      if(window.Html5Qrcode && typeof window.Html5Qrcode === 'function') return window.Html5Qrcode;
+      await new Promise(r=>setTimeout(r,150));
+    }
+    throw new Error('html5-qrcode no cargó. Posible bloqueo de CDN en el entorno.');
+  }
+
   $('#btnStart').addEventListener('click', startCam);
   $('#btnStop').addEventListener('click', stopCam);
+  $('#selCamera').addEventListener('change', e=> currentCamId=e.target.value||null);
 
   async function populate(){
+    const H5=await ensureLib();
     try{
-      const cams=await Html5Qrcode.getCameras();
+      const cams=await H5.getCameras();
       const sel=$('#selCamera'); sel.innerHTML='';
-      if(cams.length===0){status('Sin cámaras');return;}
+      if(!cams || cams.length===0){status('Sin cámaras detectadas');return;}
       cams.forEach(c=>{const opt=document.createElement('option');opt.value=c.id;opt.textContent=c.label||c.id;sel.appendChild(opt);});
       const back=cams.find(c=>/back|rear|environment/i.test(c.label));
       sel.value=back?back.id:cams[0].id; currentCamId=sel.value;
-    }catch(e){status('Error listando cámaras: '+e.message);}
+    }catch(e){status('Error listando cámaras: '+(e.message||e));}
   }
 
   async function startCam(){
-    await populate();
     try{
-      if(html5Qrcode){await html5Qrcode.stop(); html5Qrcode.clear();}
-      html5Qrcode=new Html5Qrcode('reader');
-      await html5Qrcode.start({deviceId:{exact:currentCamId}}, {fps:10, qrbox:250}, onScan);
+      const H5=await ensureLib();
+      await populate();
+      if(!currentCamId){ status('No hay cámara seleccionada'); return; }
+      if(html5Qrcode){try{await html5Qrcode.stop(); html5Qrcode.clear();}catch{}}
+      html5Qrcode=new H5('reader');
+      await html5Qrcode.start({deviceId:{exact:currentCamId}}, {fps:10, qrbox:250}, onScan, (e)=>{/*onFail*/});
       status('Cámara activa');
-    }catch(e){console.error(e);status('No se pudo iniciar cámara: '+e.message);}
+    }catch(e){ console.error(e); status('No se pudo iniciar cámara: '+(e.message||e)); }
   }
-  async function stopCam(){ try{ if(html5Qrcode){await html5Qrcode.stop(); html5Qrcode.clear(); status('Cámara detenida');} }catch(e){} }
+
+  async function stopCam(){ try{ if(html5Qrcode){await html5Qrcode.stop(); html5Qrcode.clear(); status('Cámara detenida');} }catch(e){}
+  }
 
   function onScan(txt){ status('Leído: '+txt); }
 })();
