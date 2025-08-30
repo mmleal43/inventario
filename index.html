@@ -1,280 +1,244 @@
-<!DOCTYPE html><html lang="es">
+<!DOCTYPE html>
+<html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>ALDISAN-KSK – REPORTE DE EMBARQUE (Tarimas) – Scanner sin CDN</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />  <!-- NOTA: No usamos CDNs (ni html5-qrcode, ni xlsx, ni qrcodejs) para evitar bloqueos. -->  <style>
-    :root{--c1:#00e5ff;--bg:#0c0f1f;--muted:#93a4b8;--paper-w:21.59cm;--paper-h:27.94cm}
-    *{box-sizing:border-box}
-    body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:#0c0f1f;color:#e6eef7}
-    .wrap{max-width:1100px;margin:0 auto;padding:18px}
-    header h1{text-align:center;color:var(--c1);font-weight:800}
-    header p{text-align:center;color:var(--muted)}
-    .grid{display:grid;gap:16px;margin-top:16px;grid-template-columns:1.1fr 1fr}
-    @media(max-width:900px){.grid{grid-template-columns:1fr}}
-    .card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:14px}
-    .card h2{margin:0 0 10px;color:#fff}
-    #reader{width:100%;min-height:320px;background:#0b1220;border-radius:12px;border:1px solid rgba(255,255,255,.08);overflow:hidden;position:relative;display:grid;place-items:center}
-    video{width:100%;height:100%;object-fit:cover}
-    canvas{display:none}
-    .scan-flash{position:absolute;inset:0;background:rgba(0,255,170,.15);opacity:0;transition:.2s}
-    .scan-flash.show{opacity:1}
-    .idle-overlay{position:absolute;inset:0;display:none;place-items:center;text-align:center;background:rgba(2,8,23,.85);padding:24px}
-    .idle-overlay.active{display:grid}
-    .idle-overlay button{margin-top:10px;padding:10px 16px;border-radius:10px;background:#0f1b2e;color:#fff}
-    label{font-size:12px;color:var(--muted);margin-bottom:4px;display:block}
-    input,select{width:100%;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:#0f172a;color:#e6eef7}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    @media(max-width:700px){.row{grid-template-columns:1fr}}
-    .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
-    button{border:none;border-radius:12px;padding:10px 14px;cursor:pointer}
-    .primary{background:linear-gradient(90deg,#00e5ff,#36d1dc);color:#00131a;font-weight:700}
-    .success{background:linear-gradient(90deg,#00d26a,#23e0a5);color:#001a0d;font-weight:700}
-    .danger{background:linear-gradient(90deg,#ff7373,#ff4d4d);color:#2a0000;font-weight:700}
-    .ghost{background:#0f2438;color:#fff;border:1px solid rgba(255,255,255,.12)}
-    table{width:100%;border-collapse:collapse;margin-top:10px;background:#0d1526}
-    th,td{border:1px solid rgba(255,255,255,.08);padding:8px 10px;text-align:left}
-    th{color:#a9c8ff;background:rgba(255,255,255,.04)}
-    .qr-block{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-    #qrCarga{width:140px;height:140px;background:#fff;border-radius:8px;padding:6px;display:grid;place-items:center;color:#000;font-size:11px;text-align:center}
-    footer{margin:18px 0 8px;text-align:center;color:#9fb0c5;font-size:12px}
-
-    /* IMPRESIÓN */
-    @page{size:Letter;margin:12mm}
-    #printable{background:#fff;color:#000;width:var(--paper-w);min-height:var(--paper-h);margin:0 auto;padding:1.2cm;font-size:12pt}
-    #printable h1{text-align:center;color:#00a8c7}
-    #printable .meta{display:grid;grid-template-columns:1.5fr .9fr 3.2cm;gap:.5cm;margin:.4cm 0 .3cm}
-    #printable .box{border:1px solid #000;padding:.35cm;border-radius:6px}
-    #printable #qrBox{border:1px solid #000;padding:.2cm;display:flex;align-items:center;justify-content:center}
-    #printable #qrInner{width:3.2cm;height:3.2cm;display:flex;align-items:center;justify-content:center}
-    #printable table{width:100%;border-collapse:collapse;margin-top:.5cm;font-size:11pt;background:#fff}
-    #printable th,#printable td{border:1px solid #000;padding:.2cm;text-align:left}
-    #printable thead th{background:#f2f2f2;color:#000}
-    #printable .firmas{display:grid;grid-template-columns:1fr 1fr;gap:1cm;margin-top:1cm}
-    #printable .firma{height:2.5cm;border-top:1px solid #000;text-align:center;padding-top:.2cm}
-
-    /* Aviso permisos */
-    #permBanner{display:none;margin-top:8px;padding:10px 12px;border:1px solid #7b2b2b;background:#2a0f12;color:#ffd8d8;border-radius:10px;font-size:13px}
-  </style></head>
+  <title>ALDISAN-KSK · Inventario por QR (fix cámara + tests)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Lector QR y Excel -->
+  <script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.10/minified/html5-qrcode.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+  <style>
+    :root{--bg:#0b1220;--panel:#141824;--border:#1e2535;--ink:#eaf2ff;--muted:#9bb0c9;--brand:#00e5ff}
+    body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+    header{padding:16px;text-align:center;background:#141824;border-bottom:1px solid var(--border)}
+    header h1{margin:0;font-size:22px;color:var(--brand);text-shadow:0 0 6px var(--brand)}
+    .wrap{padding:16px;max-width:1100px;margin:auto}
+    h2{margin:10px 0}
+    .scanner{min-height:320px;border:1px dashed #37507a;border-radius:12px;background:#0b1328;overflow:hidden}
+    table{width:100%;border-collapse:collapse;margin-top:12px;background:#0f172a}
+    th,td{border:1px solid var(--border);padding:8px 10px;text-align:left}
+    th{background:#141824;color:#9bb0c9}
+    .actions{margin:10px 0;display:flex;gap:10px;flex-wrap:wrap}
+    button,select{padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:#0f1524;color:var(--ink);cursor:pointer}
+    button.primary{background:var(--brand);color:#00131a;font-weight:700;border:none}
+    .pill{display:inline-block;padding:6px 10px;background:#0f1524;border:1px solid var(--border);border-radius:999px;font-size:12px;color:var(--muted);margin:4px}
+    .banner{display:none;margin:8px auto 0;max-width:1100px;padding:10px 12px;border-radius:10px;border:1px solid #7b2b2b;background:#2a0f12;color:#ffd8d8}
+    .ok{color:#7bf0a8}
+  </style>
+</head>
 <body>
-<div class="wrap">
   <header>
-    <h1>ALDISAN-KSK · REPORTE DE EMBARQUE</h1>
-    <p>Escanea los QR de las tarimas. Guarda, imprime o exporta a Excel.</p>
-    <div id="permBanner"><b>Permiso de cámara denegado.</b> Haz clic en el candado → <i>Permisos</i> → <b>Cámara → Permitir</b> y recarga. <span id="permHelp"></span></div>
-  </header>  <div class="grid">
-    <section class="card">
-      <h2>1) Escáner QR</h2>
-      <div id="reader">
-        <video id="video" playsinline muted></video>
-        <canvas id="canvas"></canvas>
-        <div class="scan-flash" id="scanFlash"></div>
-        <div class="idle-overlay" id="idleOverlay"><div>
-          <div>La cámara está en pausa.</div>
-          <button id="btnResume">Reactivar cámara</button>
-        </div></div>
-      </div>
+    <h1>ALDISAN-KSK · Inventario por QR</h1>
+    <div id="status" class="pill">Listo</div>
+  </header>
+
+  <div id="permBanner" class="banner">
+    <b>Permiso de cámara denegado.</b> Ve al candado de la barra de direcciones → Permisos → <i>Cámara</i> → <b>Permitir</b>, y recarga.
+    <span id="permHelp"></span>
+  </div>
+  <div id="cdnBanner" class="banner">No se pudo cargar <code>html5-qrcode</code> desde los CDNs. Usa <b>Escanear desde imagen</b> o pega el texto del QR.</div>
+
+  <div class="wrap">
+    <section>
+      <h2>Escáner QR</h2>
+      <div id="reader" class="scanner"></div>
       <div class="actions">
         <button id="btnStart" class="primary">Iniciar cámara</button>
-        <button id="btnStop" class="ghost">Detener cámara</button>
-        <select id="selFacing"><option value="environment">Trasera</option><option value="user">Frontal</option></select>
-        <button id="btnScanImg" class="ghost">Escanear desde imagen</button>
-        <input id="fileInput" type="file" accept="image/*" capture="environment" />
-        <button id="btnTest" class="ghost">Probar con ejemplo (sin cámara)</button>
+        <button id="btnStop">Detener cámara</button>
+        <select id="cameraSelect"></select>
+        <input id="fileInput" type="file" accept="image/*" capture="environment" style="display:none" />
+        <button id="btnScanImg">Escanear desde imagen</button>
+        <button id="btnPaste">Pegar texto QR</button>
       </div>
-      <div>Total escaneos: <b id="totalCount">0</b> · Tarimas: <b id="kTarimas">0</b> · Cajas: <b id="kCajas">0</b> · Piezas: <b id="kPiezas">0</b> · Cámara: <b id="camStatus">Detenida</b></div>
-    </section><section class="card">
-  <h2>2) Datos de embarque</h2>
-  <div class="row">
-    <div><label>Operador</label><input id="inpOperador"/></div>
-    <div><label>Placas</label><input id="inpPlacas"/></div>
-  </div>
-  <div class="row" style="margin-top:10px">
-    <div><label>Unidad</label><select id="selUnidad"><option>Camioneta</option><option>Tráiler</option><option>Torton</option><option>Otro</option></select></div>
-    <div><label>Factura/Pedimento</label><input id="inpFactura"/></div>
-  </div>
-  <div style="margin-top:12px" class="qr-block">
-    <div id="qrCarga">QR OFFLINE\n(sin librería)</div>
-  </div>
-  <div class="actions">
-    <button id="btnExportXLSX" class="success">Exportar Excel</button>
-    <button id="btnExportCSV" class="ghost">Exportar CSV</button>
-    <button id="btnPrint" class="primary">Imprimir / PDF</button>
-    <button id="btnClear" class="danger">Borrar todo</button>
-  </div>
-</section>
+    </section>
 
-  </div>  <section class="card" style="margin-top:16px">
-    <h2>3) Tarimas escaneadas</h2>
-    <table><thead><tr><th>#</th><th>Contenido QR</th><th>Cajas</th><th>Piezas</th><th>Fecha/Hora</th></tr></thead><tbody id="tbody"></tbody></table>
-  </section>  <section id="printable" style="display:none">
-    <h1>ALDISAN-KSK · REPORTE DE EMBARQUE</h1>
-    <div class="meta">
-      <div class="box"><b>Operador:</b> <span id="pOperador"></span><br><b>Placas:</b> <span id="pPlacas"></span><br><b>Unidad:</b> <span id="pUnidad"></span><br><b>Factura:</b> <span id="pFactura"></span><br><b>Fecha:</b> <span id="pFecha"></span></div>
-      <div class="box"><b>Total tarimas:</b> <span id="pTotal"></span><br><b>Código:</b> <span id="pCodigo"></span></div>
-      <div id="qrBox"><div id="qrInner">QR</div></div>
-    </div>
-    <table><thead><tr><th>#</th><th>Contenido QR</th><th>Cajas</th><th>Piezas</th><th>Fecha/Hora</th></tr></thead><tbody id="pTbody"></tbody></table>
-    <div class="firmas"><div class="firma" id="pFirmaOperador">OPERADOR</div><div class="firma">VÍCTOR GONZÁLES</div></div>
-  </section>
-  <footer>© ALDISAN-KSK · Herramienta local</footer>
-</div><script>
-// ====== Utilidades y estado ======
+    <section>
+      <h2>Inventario acumulado</h2>
+      <div class="pill">Tarimas: <b id="totalTarimas">0</b></div>
+      <div class="pill">Cajas: <b id="totalCajas">0</b></div>
+      <div class="pill">Piezas: <b id="totalPiezas">0</b></div>
+      <table>
+        <thead><tr><th>#</th><th>Contenido QR</th><th>Fecha/Hora</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="actions">
+        <button id="btnExport" class="primary">Exportar Excel</button>
+        <button id="btnClear">Finalizar / Limpiar</button>
+        <button id="btnTests">Probar parser</button>
+      </div>
+    </section>
+  </div>
+
+<script>
 const $=s=>document.querySelector(s);
-const fmt=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
-const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
-const state={scans:[],form:{operador:"",placas:"",unidad:"Camioneta",factura:""}};
+const LS='aldisan_inv_v5';
+let state = load() || { scans:[], totals:{ tarimas:0,cajas:0,piezas:0 } };
+let html5Scanner=null;
 
-function kpis(){
-  const tarimas=state.scans.length;
-  const cajas=state.scans.reduce((a,b)=>a+(b.cajas||0),0);
-  const piezas=state.scans.reduce((a,b)=>a+(b.piezas||0),0);
-  return {tarimas,cajas,piezas};
-}
+function save(){ localStorage.setItem(LS, JSON.stringify(state)); }
+function load(){ try{ const raw=localStorage.getItem(LS); return raw? JSON.parse(raw): null; }catch{ return null; } }
+function esc(s){ return String(s==null?'':s); }
 
-function updateKpis(){
-  const k=kpis();
-  $('#totalCount').textContent=k.tarimas;
-  $('#kTarimas').textContent=k.tarimas;
-  $('#kCajas').textContent=k.cajas;
-  $('#kPiezas').textContent=k.piezas;
-}
-
-// ====== Parser: soporta TSV Aldisan, JSON, URL, KV, EAN, Base64 ======
-function parseQR(text){
-  const raw=String(text||'');
-  // A) TSV Aldisan: Operador ⇥ UID ⇥ Producto ⇥ Descripción ⇥ Lote ⇥ Caducidad ⇥ Cajas ⇥ PiezasCaja ⇥ Piezas
-  const tsv=(function(s){
-    const cleaned=String(s).replace(/\u21E5/g,'\t').replace(/⇥/g,'\t').replace(/␍/g,'').replace(/\r/g,'');
-    const parts=/\t/.test(cleaned)? cleaned.split(/\t/): cleaned.split(/⇥/);
-    if(parts.length>=6){
-      const [oper, folio, prod, desc, lote, cad, cajas, piezasCaja, piezas]=parts.map(x=>String(x||'').trim());
-      const obj={ uid: folio, producto: prod, descripcion: desc, lote, caducidad: cad };
-      if(cajas) obj.cajas=Number(cajas)||0;
-      const pxc=Number(piezasCaja)||0; if(pxc) obj.piezasCaja=pxc;
-      if(piezas) obj.piezas=Number(piezas)||0;
-      // si no hay piezas explícitas, calcular por cajas×piezasCaja
-      if(!obj.piezas && obj.cajas && pxc) obj.piezas=obj.cajas*pxc;
-      return obj;
-    }
-    return null;
-  })(raw);
-  if(tsv) return tsv;
-
-  const trimmed=raw.trim();
-  // JSON
-  try{ return JSON.parse(trimmed); }catch{}
-  // URL con query
-  try{ const u=new URL(trimmed); const obj={}; u.searchParams.forEach((v,k)=>obj[k.toLowerCase()]=v); if(Object.keys(obj).length) return obj; }catch{}
-  // query suelta a=1&b=2
-  if(/[=&]/.test(trimmed)){ const obj={}; const qs=trimmed.replace(/^[^?]*\?/,''); const sp=new URLSearchParams(qs); sp.forEach((v,k)=>obj[k.toLowerCase()]=v); if(Object.keys(obj).length) return obj; }
-  // clave=valor o clave:valor
-  const objKV={}; trimmed.split(/[\n;&|,]+/).map(s=>s.trim()).filter(Boolean).forEach(p=>{ const m=p.match(/^([^:=]+)[:=](.*)$/); if(m){ objKV[m[1].trim().toLowerCase()]=m[2].trim(); } }); if(Object.keys(objKV).length) return objKV;
-  // solo números → EAN
-  if(/^[0-9]{8,14}$/.test(trimmed)) return { ean: trimmed };
-  // Base64 → JSON
-  try{ const decoded=atob(trimmed); return JSON.parse(decoded); }catch{}
-  return {raw: trimmed};
-}
-
-function onDecoded(text){
-  const data=parseQR(text);
-  // Derivar cajas/piezas si posible
-  const cajas=Number(data.cajas||0);
-  const piezasCaja=Number(data.piezasCaja||0);
-  let piezas=Number(data.piezas||0);
-  if(!piezas && cajas && piezasCaja) piezas=cajas*piezasCaja;
-
-  state.scans.push({ id:uid(), text, cajas, piezas, ts:new Date().toISOString() });
-  renderTable(); updateKpis(); refreshQR(); flash();
-}
-
-// ====== Render ======
-function drawQR(el,size,text){
-  // Sin librería externa: mostramos un resumen legible
-  el.innerHTML='';
-  const div=document.createElement('div');
-  div.style.whiteSpace='pre-wrap';
-  div.style.fontSize='11px';
-  div.textContent = (text.length>220? text.slice(0,220)+'…' : text);
-  el.appendChild(div);
-}
-
-function refreshQR(){
-  const payload=JSON.stringify({meta:{v:1},...state.form,total:state.scans.length,items:state.scans});
-  drawQR(document.getElementById('qrCarga'),140,payload);
-  const inner=document.getElementById('qrInner'); if(inner) inner.textContent='(QR embebido offline)';
-}
-
-function renderTable(){
-  const tb=document.getElementById('tbody'); tb.innerHTML='';
+function render(){
+  $('#totalTarimas').textContent=state.totals.tarimas;
+  $('#totalCajas').textContent=state.totals.cajas;
+  $('#totalPiezas').textContent=state.totals.piezas;
+  const tb=$('#tbody'); tb.innerHTML='';
   state.scans.forEach((s,i)=>{
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${i+1}</td><td>${s.text}</td><td>${s.cajas||0}</td><td>${s.piezas||0}</td><td>${fmt(new Date(s.ts))}</td>`;
+    const dt=new Date(s.ts);
+    tr.innerHTML=`<td>${i+1}</td><td>${esc(s.text)}</td><td>${dt.toLocaleString()}</td>`;
     tb.appendChild(tr);
   });
 }
 
-function preparePrint(){
-  document.getElementById('pOperador').textContent=state.form.operador;
-  document.getElementById('pPlacas').textContent=state.form.placas;
-  document.getElementById('pUnidad').textContent=state.form.unidad;
-  document.getElementById('pFactura').textContent=state.form.factura;
-  document.getElementById('pFecha').textContent=fmt(new Date());
-  document.getElementById('pTotal').textContent=state.scans.length;
-  document.getElementById('pCodigo').textContent=(state.form.operador||'-').slice(0,3).toUpperCase()+"-"+(state.form.placas||"---");
-  document.getElementById('pFirmaOperador').textContent=(state.form.operador||'OPERADOR').toUpperCase();
-  const pt=document.getElementById('pTbody'); pt.innerHTML='';
-  state.scans.forEach((s,i)=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${i+1}</td><td>${s.text}</td><td>${s.cajas||0}</td><td>${s.piezas||0}</td><td>${fmt(new Date(s.ts))}</td>`; pt.appendChild(tr); });
-  refreshQR();
+// —— Parser puro para pruebas ——
+function parseCountsFromQR(text){
+  const clean=String(text).replace(/\r|␍/g,'');
+  const parts=clean.replace(/⇥/g,'\t').split(/\t/);
+  if(parts.length>=7){
+    const cajas=parseInt(parts[6])||0;
+    const piezasCaja=parseInt(parts[7])||0;
+    const piezas=(parts.length>=9 && parseInt(parts[8])) ? parseInt(parts[8]) : (cajas*piezasCaja);
+    return { cajas, piezas };
+  }
+  return { cajas:0, piezas:0 };
 }
 
-// ====== Export ======
-function makeAOA(){
-  const a=[["ALDISAN-KSK REPORTE DE EMBARQUE"],["Operador",state.form.operador],["Placas",state.form.placas],["Unidad",state.form.unidad],["Factura",state.form.factura],["Fecha",fmt(new Date())],[],["#","Contenido QR","Cajas","Piezas","Fecha/Hora"]];
-  state.scans.forEach((s,i)=>a.push([i+1,s.text,s.cajas||0,s.piezas||0,fmt(new Date(s.ts))]));
-  return a;
-}
-function exportCSV(){ const csv=makeAOA().map(r=>r.map(x=>`"${String(x).replaceAll('"','""')}"`).join(',')).join('\n'); const blob=new Blob([csv],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='reporte.csv'; a.click(); }
-function exportXLSX(){ // sin XLSX lib: fallback a CSV
-  exportCSV();
+function addScan(txt){
+  const clean=String(txt).replace(/\r|␍/g,'');
+  state.scans.push({ text: clean, ts: Date.now() });
+  state.totals.tarimas++;
+  const { cajas, piezas } = parseCountsFromQR(clean);
+  state.totals.cajas += cajas;
+  state.totals.piezas += piezas;
+  save(); render();
 }
 
-// ====== Cámara nativa + decodificación ======
-let stream=null, raf=null, scanning=false; const video=document.getElementById('video'); const canvas=document.getElementById('canvas'); const ctx=canvas.getContext('2d');
-const hasBarcodeDetector = 'BarcodeDetector' in window; let detector=null; if(hasBarcodeDetector){ try{ detector=new BarcodeDetector({formats:['qr_code']}); }catch{}}
+function exportExcel(){
+  const aoa=[["ALDISAN-KSK INVENTARIO"],[],["Tarimas",state.totals.tarimas],["Cajas",state.totals.cajas],["Piezas",state.totals.piezas],[],["#","Contenido QR","Fecha/Hora"]];
+  state.scans.forEach((s,i)=>{ const dt=new Date(s.ts); aoa.push([i+1,s.text,dt.toLocaleString()]); });
+  const ws=XLSX.utils.aoa_to_sheet(aoa); ws['!cols']=[{wch:6},{wch:80},{wch:22}];
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Inventario');
+  XLSX.writeFile(wb,'inventario_'+Date.now()+'.xlsx');
+}
+
+// —— Carga robusta de la librería ——
+async function ensureH5(retries=20){
+  for(let i=0;i<retries;i++){
+    if(window.Html5Qrcode && typeof window.Html5Qrcode==='function') return window.Html5Qrcode;
+    await new Promise(r=>setTimeout(r,150));
+  }
+  $('#cdnBanner').style.display='block';
+  return null;
+}
+
+async function listCameras(){
+  try{
+    const H5 = await ensureH5();
+    if(!H5) return;
+    const cams=await H5.getCameras();
+    const sel=$('#cameraSelect'); sel.innerHTML='';
+    if(!cams || cams.length===0){ sel.innerHTML='<option>(sin cámaras)</option>'; return; }
+    cams.sort((a,b)=> score(b.label)-score(a.label));
+    for(const c of cams){ const o=document.createElement('option'); o.value=c.id; o.textContent=c.label||('Cam '+c.id.slice(-4)); sel.appendChild(o); }
+    const back=cams.find(c=>/back|rear|environment|trás/i.test(c.label));
+    sel.value=(back?back.id:cams[0].id);
+  }catch(e){ /* silencioso */ }
+}
+function score(label=''){ const l=String(label).toLowerCase(); if(l.includes('back')||l.includes('rear')||l.includes('environment')||l.includes('trás')) return 2; if(l.includes('front')||l.includes('user')||l.includes('webcam')) return 1; return 0; }
+
+async function requestPermission(){
+  try{
+    const s=await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ideal:'environment'} }, audio:false });
+    s.getTracks().forEach(t=>t.stop());
+    return true;
+  }catch(e){
+    if(e && e.name==='NotAllowedError') showPermBanner();
+    return false;
+  }
+}
+function showPermBanner(){
+  const b=$('#permBanner'); if(!b) return; b.style.display='block';
+  const help=$('#permHelp'); const ua=navigator.userAgent.toLowerCase(); let tip='';
+  if(/chrome\//.test(ua)) tip=' (Chrome: Privacidad y seguridad → Configuración de sitios → Cámara)';
+  else if(/edg\//.test(ua)) tip=' (Edge: Cookies y permisos del sitio → Cámara)';
+  else if(/firefox\//.test(ua)) tip=' (Firefox: Permisos del sitio → Cámara)';
+  else if(/safari\//.test(ua)) tip=' (Safari: Preferencias → Sitios web → Cámara)';
+  help.textContent=tip;
+}
 
 async function startCamera(){
+  $('#status').textContent='Iniciando…';
+  const granted = await requestPermission();
+  if(!granted){ $('#status').textContent='Permiso de cámara denegado'; return; }
+
+  const H5 = await ensureH5();
+  if(!H5){ $('#status').textContent='CDN bloqueado; usa "Escanear desde imagen"'; return; }
+
   try{
-    if(!(location.protocol==='https:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname))){ showWarn('Usa HTTPS o localhost para la cámara.'); }
-    await stopCamera();
-    const facing=document.getElementById('selFacing').value||'environment';
-    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing}}, audio:false});
-    video.srcObject=stream; await video.play();
-    canvas.width=video.videoWidth||640; canvas.height=video.videoHeight||480;
-    scanning=true; tick(); document.getElementById('camStatus').textContent='Activa';
-  }catch(e){ if(e && e.name==='NotAllowedError'){ showPermBanner(); } showErr('No se pudo iniciar la cámara: '+(e.name||'')+' '+(e.message||e)); }
+    if(html5Scanner){ try{ await html5Scanner.stop(); html5Scanner.clear(); }catch{} }
+    html5Scanner=new H5('reader');
+    await listCameras();
+    const sel=$('#cameraSelect');
+    const camId = sel && sel.value ? { deviceId:{ exact: sel.value } } : { facingMode:{ exact:'environment' } };
+    await html5Scanner.start(
+      camId,
+      { fps:12, qrbox:{width:260,height:260}, aspectRatio:1 },
+      (txt)=> addScan(txt),
+      (err)=>{/* onScanFailure silencioso */}
+    );
+    $('#status').textContent='Cámara activa';
+  }catch(e){
+    if(e && e.name==='NotAllowedError') showPermBanner();
+    $('#status').textContent='No se pudo iniciar cámara: '+(e.name||'')+' '+(e.message||e);
+  }
 }
-async function stopCamera(){ scanning=false; if(raf) cancelAnimationFrame(raf); try{ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }catch{} try{ video.pause(); video.srcObject=null; }catch{} document.getElementById('camStatus').textContent='Detenida'; }
-function flash(){ const f=document.getElementById('scanFlash'); f.classList.add('show'); setTimeout(()=>f.classList.remove('show'),120); }
 
-async function tick(){ if(!scanning) return; try{ ctx.drawImage(video,0,0,canvas.width,canvas.height); let text=null; if(detector){ const codes=await detector.detect(canvas); if(codes&&codes.length) text=codes[0].rawValue; } // Si no hay detector, hoy dependemos de imagen
-  if(text){ onDecoded(text); await new Promise(r=>setTimeout(r,600)); } }catch{} raf=requestAnimationFrame(tick); }
+async function stopCamera(){
+  try{ if(html5Scanner){ await html5Scanner.stop(); html5Scanner.clear(); } $('#status').textContent='Cámara detenida'; }
+  catch(e){ $('#status').textContent='No se pudo detener'; }
+}
 
-async function onScanImage(){ const f=document.getElementById('fileInput').files?.[0]; if(!f) return alert('Selecciona una imagen'); const img=new Image(); img.onload=async ()=>{ canvas.width=img.width; canvas.height=img.height; ctx.drawImage(img,0,0); let text=null; if(detector){ const codes=await detector.detect(canvas); if(codes&&codes.length) text=codes[0].rawValue; } if(text) onDecoded(text); else alert('No se encontró un QR en la imagen'); }; img.src=URL.createObjectURL(f); }
+// Fallbacks
+$('#btnScanImg').addEventListener('click', ()=> $('#fileInput').click());
+$('#fileInput').addEventListener('change', async ()=>{
+  const f=$('#fileInput').files?.[0]; if(!f) return;
+  try{
+    const H5=await ensureH5(); if(!H5) throw new Error('Sin librería para decodificar');
+    const reader=html5Scanner || new H5('reader');
+    const result=await reader.scanFile(f,true);
+    addScan(result);
+  }catch(e){ alert('No se pudo leer el QR de la imagen'); }
+});
+$('#btnPaste').addEventListener('click', async ()=>{
+  try{ const txt=await navigator.clipboard.readText(); if(!txt) return alert('Portapapeles vacío'); addScan(txt); }
+  catch{ const raw=prompt('Pega aquí el texto del QR'); if(raw) addScan(raw); }
+});
 
-function showErr(msg){ console.error(msg); }
-function showWarn(msg){ console.warn(msg); }
-function showPermBanner(){ const b=document.getElementById('permBanner'); if(!b) return; b.style.display='block'; const ua=navigator.userAgent.toLowerCase(); const help=document.getElementById('permHelp'); let tip=''; if(/chrome\//.test(ua)) tip=' (Chrome: Configuración → Privacidad y seguridad → Configuración de sitios → Cámara)'; else if(/edg\//.test(ua)) tip=' (Edge: Configuración → Cookies y permisos del sitio → Cámara)'; else if(/firefox\//.test(ua)) tip=' (Firefox: Permisos del sitio → Cámara)'; else if(/safari\//.test(ua)) tip=' (Safari: Preferencias → Sitios web → Cámara)'; help.textContent=tip; }
+// Botones principales
+$('#btnStart').onclick=startCamera;
+$('#btnStop').onclick=stopCamera;
+$('#btnExport').onclick=exportExcel;
+$('#btnClear').onclick=()=>{ if(confirm('¿Finalizar y limpiar inventario?')){ state={ scans:[], totals:{ tarimas:0,cajas:0,piezas:0 } }; save(); render(); $('#status').textContent='Inventario limpio'; } };
 
-// ====== Print ======
-function snapshotQRInto(node){ const d=node.querySelector('#qrInner'); if(!d) return; d.textContent='(QR offline)'; }
-function printViaIframe(){ preparePrint(); const clone=document.getElementById('printable').cloneNode(true); snapshotQRInto(clone); const iframe=document.createElement('iframe'); iframe.style.position='fixed'; iframe.style.width='0'; iframe.style.height='0'; iframe.style.border='0'; document.body.appendChild(iframe); const doc=iframe.contentDocument||iframe.contentWindow.document; doc.open(); doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>Imprimir</title><style>${document.querySelector('style').innerHTML}</style></head><body>${clone.outerHTML}</body></html>`); doc.close(); iframe.onload=()=>{ iframe.contentWindow.focus(); iframe.contentWindow.print(); setTimeout(()=>document.body.removeChild(iframe),1500); } }// ====== Eventos ====== $('#btnStart').onclick=startCamera; $('#btnStop').onclick=stopCamera; $('#btnScanImg').onclick=onScanImage; $('#btnResume').onclick=startCamera; $('#btnExportXLSX').onclick=exportXLSX; $('#btnExportCSV').onclick=exportCSV; $('#btnPrint').onclick=printViaIframe; $('#btnClear').onclick=()=>{state.scans=[]; state.form={operador:"",placas:"",unidad:"Camioneta",factura:""}; renderTable(); updateKpis(); refreshQR();}; $('#inpOperador').oninput=e=>{state.form.operador=e.target.value; refreshQR();}; $('#inpPlacas').oninput=e=>{state.form.placas=e.target.value; refreshQR();}; $('#selUnidad').onchange=e=>{state.form.unidad=e.target.value; refreshQR();}; $('#inpFactura').oninput=e=>{state.form.factura=e.target.value; refreshQR();};
+// —— Tests unitarios del parser (no tocan el estado) ——
+function runParserTests(){
+  const cases=[
+    {name:'TSV Aldisan con piezas explícitas', input:'MANUEL\t20250827-0011\t10560\tEMULSION DIA BE CALM 400ML\tWGH06034\t2028-06-04\t60\t12\t720', expect:{cajas:60,piezas:720}},
+    {name:'TSV Aldisan sin piezas explícitas', input:'MANUEL\tU-2\t10560\tDESC\tL1\t2028-06-04\t5\t10', expect:{cajas:5,piezas:50}},
+    {name:'No TSV', input:'ALGO SIN CAMPOS', expect:{cajas:0,piezas:0}},
+  ];
+  let pass=0; const out=[];
+  for(const tc of cases){ const got=parseCountsFromQR(tc.input); const ok=(got.cajas===tc.expect.cajas && got.piezas===tc.expect.piezas); pass+=ok?1:0; out.push(`[${ok?'OK':'FAIL'}] ${tc.name} → ${JSON.stringify(got)} esperado ${JSON.stringify(tc.expect)}`); }
+  console.log('%cPruebas parser','color:#0f0'); out.forEach(l=>console.log(l));
+  alert((pass===cases.length? '✅ Todas las pruebas pasaron':'⚠️ Algunas pruebas fallaron')+'\n\n'+out.join('\n'));
+}
+$('#btnTests').onclick=runParserTests;
 
-// Botón de prueba (casos) $('#btnTest').onclick=()=>{ const sample='MANUEL⇥20250827-0011⇥10560⇥EMULSION DIA BE CALM 400ML⇥WGH06034⇥2028-06-04⇥60⇥12⇥720\u240d'; onDecoded(sample); const sample2='uid=T-2&producto=99999&cajas=10&piezasCaja=24'; onDecoded(sample2); };
-
-// Init refreshQR(); updateKpis();
-
-// Diagnóstico simple al cargar (function runDiag(){ const lines=[]; const isSecure=window.isSecureContext; lines.push('isSecureContext: '+(isSecure?'sí':'NO (usa HTTPS o localhost)')); lines.push('mediaDevices: '+(!!navigator.mediaDevices)); lines.push('BarcodeDetector: '+(hasBarcodeDetector?'sí':'no')); const log=document.createElement('pre'); log.textContent=lines.join('\n'); document.body.appendChild(log); log.style.display='none'; })(); </script>
-
+// Init
+window.addEventListener('load',()=>{ render(); listCameras(); });
+</script>
 </body>
 </html>
