@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>ALDISAN-KSK · Inventario por QR (sin CDNs, cámara nativa + jsQR inline)</title>
+  <title>ALDISAN-KSK · Inventario por QR (cámara nativa + jsQR con feedback)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root{--bg:#0b1220;--panel:#141824;--border:#1e2535;--ink:#eaf2ff;--muted:#9bb0c9;--brand:#00e5ff}
@@ -14,6 +14,8 @@
     .scanner{position:relative;min-height:320px;border:1px dashed #37507a;border-radius:12px;background:#0b1328;overflow:hidden}
     video{width:100%;height:100%;object-fit:cover;display:block}
     canvas{display:none}
+    .scan-line{position:absolute;top:0;left:0;right:0;height:3px;background:rgba(0,229,255,0.8);box-shadow:0 0 12px #00e5ff;animation:scanAnim 2s linear infinite}
+    @keyframes scanAnim{0%{top:0}50%{top:calc(100% - 3px)}100%{top:0}}
     table{width:100%;border-collapse:collapse;margin-top:12px;background:#0f172a}
     th,td{border:1px solid var(--border);padding:8px 10px;text-align:left}
     th{background:#141824;color:#9bb0c9}
@@ -38,9 +40,10 @@
 
   <div class="wrap">
     <section>
-      <h2>Escáner QR (sin CDNs)</h2>
+      <h2>Escáner QR</h2>
       <div id="reader" class="scanner">
         <video id="video" playsinline muted></video>
+        <div class="scan-line" id="scanLine"></div>
         <canvas id="canvas"></canvas>
       </div>
       <div class="actions">
@@ -73,29 +76,17 @@
     </section>
   </div>
 
-<!-- jsQR 1.4.0 MIN embebido (licencia MIT) -->
+<script src="https://unpkg.com/jsqr/dist/jsQR.js"></script>
 <script>
-/*! jsQR v1.4.0 - https://github.com/cozmo/jsQR - MIT License */
-/* Minified source inlined to evitar CDNs. */
-/* eslint-disable */
-// jsQR min start
-!function(){function e(e,t){if(!(e instanceof t))throw new TypeError("Cannot call a class as a function")}function t(e,t){for(var r=0;r<t.length;r++){var n=t[r];n.enumerable=n.enumerable||!1,n.configurable=!0,"value"in n&&(n.writable=!0),Object.defineProperty(e,n.key,n)}}function r(e,r,n){return r&&t(e.prototype,r),n&&t(e,n),e}function n(e){return(e>>>24&255)<<24|(e>>>16&255)<<16|(e>>>8&255)<<8|255&e}function a(e,t,r){return Math.max(t,Math.min(r,e))}function i(e,t){return e.x*t.y-e.y*t.x}function o(e,t){return{x:e.x+t.x,y:e.y+t.y}}function s(e,t){return{x:e.x-t.x,y:e.y-t.y}}function u(e){return Math.sqrt(e.x*e.x+e.y*e.y)}function c(e,t){return{x:e.x*t,y:e.y*t}}function l(e,t){return{x:e.x*t.x+y=e.y*t.y}}function f(e,t){return e.x*t.x+e.y*t.y}var d=function(){function t(r,n,a){e(this,t),this.width=r,this.height=n,this.data=a}return r(t,[{key:"get",value:function(e,t){return this.data[t*this.width+e]}}]),t}(),h=function(){function t(r){e(this,t),this.topLeft=r.topLeft,this.topRight=r.topRight,this.bottomLeft=r.bottomLeft,this.bottomRight=r.bottomRight}return r(t,[{key:"topLeft"," +
-"get:function(){return this._topLeft}},{key:"topRight",get:function(){return this._topRight}},{key:"bottomLeft",get:function(){return this._bottomLeft}},{key:"bottomRight",get:function(){return this._bottomRight}}]),t}();function p(e){for(var t=new Uint8ClampedArray(e.width*e.height),r=0;r<e.data.length;r+=4){var a=.2126*e.data[r]+.7152*e.data[r+1]+.0722*e.data[r+2];t[r/4]=a}return new d(e.width,e.height,t)}function m(e){for(var t=e.width,r=e.height,n=new Uint8ClampedArray(t*r),a=0;a<r;a++)for(var i=0;i<t;i++)n[a*t+i]=e.get(i,a)>128?255:0;return new d(t,r,n)}function v(e,t,r){for(var n=0,a=0,i=0,o=0,s=0,u=0,c=r.height;c-- >0;){var l=r.get(0,c),f=1;void 0!==l&&(n+=l*i,a+=l*o,i++,o+=f,s+=l,u+=f)}var d=n/o-h=a/u;return d}function g(e){try{return window.atob(e)}catch(e){return null}}function y(e){for(var t=0,r=0,n=e.length,a=0;a<n;a++)t=t<<8|e[a],(a+1)%3==0&&(r+=String.fromCharCode(t>>16&255,t>>8&255,255&t),t=0);return r}function b(e,t){for(var r=0,n=0,a=t.length,i=0;i<a;i++){var o=t[i];r=(r<<8|e.get(o.x,o.y))>>>0,n+=8}return{byte:r,bits:n}}function w(e){return e&&e.data?e:null}function S(e){if(!e||!e.data)return null;for(var t=e.width,r=e.height,n=0,a=0,i=0,o=0,s=0,u=0,c=0;c<r;c++)for(var l=0;l<t;l++){var f=e.data[c*t+l];n+=f,a+=f*l,i+=f*c,o+=f*l*l,s+=f*c*c,u+=f*l*c}var d=n,rX=a/n,rY=i/n,xx=o/n-rX*rX,yy=s/n-rY*rY,xy=u/n-rX*rY;return{points:[{x:rX-1,y:rY-1},{x:rX+1,y:rY-1},{x:rX-1,y:rY+1},{x:rX+1,y:rY+1}],xx:xx,yy:yy,xy:xy}}function C(e,t,r){for(var n=e.width,a=e.height,i=r.height,o=[],s=0;s<a;s+=t)for(var u=0;u<n;u+=t){var c=e.get(u,s);o.push(c)}return new d(Math.floor(n/t),Math.floor(a/t),new Uint8ClampedArray(o))}function E(e,t,r){for(var n=e.width,a=e.height,i=new Uint8ClampedArray(4*n*a),o=0;o<a;o++)for(var s=0;s<n;s++){var u=e.get(s,o);i[4*(o*n+s)+0]=u,i[4*(o*n+s)+1]=u,i[4*(o*n+s)+2]=u,i[4*(o*n+s)+3]=255}return{data:i,width:n,height:a}}function T(e,t,r){try{var n=jsQR(E(e).data,e.width,e.height);return n}catch(e){return null}}
-window.__jsqrDecode=function(e,t,r){try{return jsQR(e,t,r)}catch(e){return null}};
-}();
-// jsQR min end (wrapper)
-</script>
-
-<script>
-// ——— App: cámara nativa + jsQR ———
 const $=s=>document.querySelector(s);
-const LS='aldisan_inv_v6_nocdn';
+const LS='aldisan_inv_v7_feedback';
 let state = load() || { scans:[], totals:{ tarimas:0,cajas:0,piezas:0 } };
 let stream=null, raf=null, scanning=false;
 
 const video=$('#video');
 const canvas=$('#canvas');
 const ctx=canvas.getContext('2d');
+const beep=new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA='); // beep corto vacío
 
 function save(){ localStorage.setItem(LS, JSON.stringify(state)); }
 function load(){ try{ const raw=localStorage.getItem(LS); return raw? JSON.parse(raw): null; }catch{ return null; } }
@@ -108,7 +99,6 @@ function render(){
   state.scans.forEach((s,i)=>{ const tr=document.createElement('tr'); const dt=new Date(s.ts); tr.innerHTML=`<td>${i+1}</td><td>${esc(s.text)}</td><td>${dt.toLocaleString()}</td>`; tb.appendChild(tr); });
 }
 
-// —— Parser Aldisan TSV → cajas/piezas ——
 function parseCountsFromQR(text){
   const clean=String(text).replace(/\r|␍/g,'');
   const parts=clean.replace(/⇥/g,'\t').split(/\t/);
@@ -127,6 +117,16 @@ function addScanText(txt){
   state.totals.tarimas++;
   const { cajas, piezas } = parseCountsFromQR(clean);
   state.totals.cajas += cajas; state.totals.piezas += piezas; save(); render();
+  feedback();
+}
+
+function feedback(){
+  // Animación borde
+  const reader=$('#reader'); reader.style.boxShadow='0 0 20px 5px #00e5ff'; setTimeout(()=> reader.style.boxShadow='none',400);
+  // Vibración
+  if(navigator.vibrate) navigator.vibrate(200);
+  // Sonido
+  try{ beep.currentTime=0; beep.play(); }catch{}
 }
 
 function showPermBanner(){
@@ -167,21 +167,18 @@ function tick(){
   try{
     ctx.drawImage(video,0,0,canvas.width,canvas.height);
     const img=ctx.getImageData(0,0,canvas.width,canvas.height);
-    const res = window.jsQR ? window.jsQR(img.data, img.width, img.height) : (window.__jsqrDecode? window.__jsqrDecode(img.data, img.width, img.height): null);
-    if(res && res.data){ addScanText(res.data); // anti-doble lectura simple
-      setTimeout(()=>{},400);
-    }
-  }catch(e){ /* frame error */ }
+    const res = window.jsQR ? window.jsQR(img.data, img.width, img.height) : null;
+    if(res && res.data){ addScanText(res.data); scanning=false; setTimeout(()=>{scanning=true; tick();},1200); }
+  }catch(e){ }
   raf=requestAnimationFrame(tick);
 }
 
-// ——— Fallbacks ———
 $('#btnScanImg').addEventListener('click', ()=> $('#fileInput').click());
 $('#fileInput').addEventListener('change', ()=>{
   const f=$('#fileInput').files?.[0]; if(!f) return;
   const img=new Image(); img.onload=()=>{
     canvas.width=img.width; canvas.height=img.height; ctx.drawImage(img,0,0);
-    let txt=null; try{ const d=ctx.getImageData(0,0,canvas.width,canvas.height); const r=window.jsQR? window.jsQR(d.data,d.width,d.height): (window.__jsqrDecode? window.__jsqrDecode(d.data,d.width,d.height):null); if(r&&r.data) txt=r.data; }catch{}
+    let txt=null; try{ const d=ctx.getImageData(0,0,canvas.width,canvas.height); const r=window.jsQR? window.jsQR(d.data,d.width,d.height):null; if(r&&r.data) txt=r.data; }catch{}
     if(txt) addScanText(txt); else alert('No se encontró un QR en la imagen');
   }; img.src=URL.createObjectURL(f);
 });
@@ -190,7 +187,6 @@ $('#btnPaste').addEventListener('click', async ()=>{
   catch{ const raw=prompt('Pega aquí el texto del QR'); if(raw) addScanText(raw); }
 });
 
-// ——— Exportar a Excel (sin CDN: generamos CSV que Excel abre) ———
 function exportCSV(){
   const aoa=[["ALDISAN-KSK INVENTARIO"],[],["Tarimas",state.totals.tarimas],["Cajas",state.totals.cajas],["Piezas",state.totals.piezas],[],["#","Contenido QR","Fecha/Hora"]];
   state.scans.forEach((s,i)=>{ const dt=new Date(s.ts); aoa.push([i+1,s.text,dt.toLocaleString()]); });
@@ -198,7 +194,6 @@ function exportCSV(){
   const blob=new Blob([csv],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='inventario_'+Date.now()+'.csv'; a.click();
 }
 
-// ——— Tests parser ———
 function runParserTests(){
   const cases=[
     {name:'TSV Aldisan con piezas explícitas', input:'MANUEL\t20250827-0011\t10560\tEMULSION DIA BE CALM 400ML\tWGH06034\t2028-06-04\t60\t12\t720', expect:{cajas:60,piezas:720}},
@@ -210,14 +205,12 @@ function runParserTests(){
   alert((pass===cases.length? '✅ Todas las pruebas pasaron':'⚠️ Algunas pruebas fallaron')+'\n\n'+out.join('\n'));
 }
 
-// ——— Eventos ———
 $('#btnStart').onclick=startCamera;
 $('#btnStop').onclick=stopCamera;
 $('#btnExport').onclick=exportCSV;
 $('#btnClear').onclick=()=>{ if(confirm('¿Finalizar y limpiar inventario?')){ state={ scans:[], totals:{ tarimas:0,cajas:0,piezas:0 } }; save(); render(); $('#status').textContent='Inventario limpio'; } };
 $('#btnTests').onclick=runParserTests;
 
-// Init
 render();
 </script>
 </body>
