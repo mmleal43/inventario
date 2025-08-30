@@ -65,7 +65,18 @@
       <div class="pill">Cajas: <b id="totalCajas">0</b></div>
       <div class="pill">Piezas: <b id="totalPiezas">0</b></div>
       <table>
-        <thead><tr><th>#</th><th>Contenido QR</th><th>Fecha/Hora</th></tr></thead>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>ID</th>
+            <th>Descripción</th>
+            <th>Lote</th>
+            <th>Caducidad</th>
+            <th>Cajas</th>
+            <th>Pz x Caja</th>
+            <th>Pz x Tarima</th>
+          </tr>
+        </thead>
         <tbody id="tbody"></tbody>
       </table>
       <div class="actions">
@@ -99,25 +110,50 @@ function render(){
   state.scans.forEach((s,i)=>{ const tr=document.createElement('tr'); const dt=new Date(s.ts); tr.innerHTML=`<td>${i+1}</td><td>${esc(s.text)}</td><td>${dt.toLocaleString()}</td>`; tb.appendChild(tr); });
 }
 
-function parseCountsFromQR(text){
-  const clean=String(text).replace(/\r|␍/g,'');
-  const parts=clean.replace(/⇥/g,'\t').split(/\t/);
-  if(parts.length>=7){
-    const cajas=parseInt(parts[6])||0;
-    const piezasCaja=parseInt(parts[7])||0;
-    const piezas=(parts.length>=9 && parseInt(parts[8])) ? parseInt(parts[8]) : (cajas*piezasCaja);
-    return { cajas, piezas };
+// —— Parser Aldisan TSV → registro estructurado ——
+function parseRecord(text){
+  const raw=String(text||'');
+  // 1) TSV Aldisan (tab o símbolo ⇥)
+  const tsv=raw.replace(/
+|␍/g,'').replace(/⇥/g,'	');
+  const parts = tsv.split(/	/);
+  if(parts.length>=6){
+    // columnas conocidas: 0 Operador, 1 UID (folio tarima), 2 Producto (ID de producto), 3 Descripción, 4 Lote, 5 Cad, 6 Cajas, 7 PzCaja, 8 Piezas
+    const id = (parts[2]||'').trim();             // << ID = PRODUCTO
+    const descripcion = (parts[3]||'').trim();
+    const lote = (parts[4]||'').trim();
+    const caducidad = (parts[5]||'').trim();
+    const cajas = Number(parts[6]||0) || 0;
+    const pzcaja = Number(parts[7]||0) || 0;
+    const piezas = Number(parts[8]||0) || 0;
+    const pztarima = piezas || (cajas * pzcaja);
+    return { id, descripcion, lote, caducidad, cajas, pzcaja, pztarima, raw };
   }
-  return { cajas:0, piezas:0 };
+  // 2) JSON/kv como fallback
+  try{
+    const o=JSON.parse(raw); const g=k=> (o[k]!=null? String(o[k]).trim(): ''); const n=k=> Number(o[k]||0)||0;
+    const id=g('producto')||g('ean')||g('sku')||g('codigo')||g('código')||g('id_producto')||g('articulo')||g('artículo')||g('01')||g('product')||g('product_id')||g('prod');
+    const descripcion=g('descripcion')||g('descripción')||g('desc')||g('nombre');
+    const lote=g('lote'); const caducidad=g('caducidad')||g('cad')||g('exp')||g('fecha_cad');
+    const cajas=n('cajas'); const pzcaja=n('piezasCaja')||n('pzcaja')||n('pzsxcaja');
+    const piezas=n('piezas')||n('pz')||n('pzs')||0; const pztarima=piezas || (cajas*pzcaja);
+    return { id, descripcion, lote, caducidad, cajas, pzcaja, pztarima, raw };
+  }catch{}
+  // 3) Si no se reconoce, registrar vacío pero conservar raw
+  return { id:'', descripcion:'', lote:'', caducidad:'', cajas:0, pzcaja:0, pztarima:0, raw };
 }
 
 function addScanText(txt){
-  const clean=String(txt).replace(/\r|␍/g,'');
-  state.scans.push({ text: clean, ts: Date.now() });
+  const rec = parseRecord(txt);
+  const now = Date.now();
+  state.scans.push({ ...rec, ts: now });
   state.totals.tarimas++;
-  const { cajas, piezas } = parseCountsFromQR(clean);
-  state.totals.cajas += cajas; state.totals.piezas += piezas; save(); render();
-  feedback();
+  state.totals.cajas += rec.cajas;
+  state.totals.piezas += rec.pztarima;
+  save(); render();
+  try{ if(navigator.vibrate) navigator.vibrate([60]); }catch{}
+  playBeep();
+  const f=document.getElementById('flash'); if(f){ f.classList.add('show'); setTimeout(()=>f.classList.remove('show'),160); }
 }
 
 function feedback(){
@@ -188,8 +224,8 @@ $('#btnPaste').addEventListener('click', async ()=>{
 });
 
 function exportCSV(){
-  const aoa=[["ALDISAN-KSK INVENTARIO"],[],["Tarimas",state.totals.tarimas],["Cajas",state.totals.cajas],["Piezas",state.totals.piezas],[],["#","Contenido QR","Fecha/Hora"]];
-  state.scans.forEach((s,i)=>{ const dt=new Date(s.ts); aoa.push([i+1,s.text,dt.toLocaleString()]); });
+  const aoa=[["ALDISAN-KSK INVENTARIO"],[],["Tarimas",state.totals.tarimas],["Cajas",state.totals.cajas],["Piezas",state.totals.piezas],[],["#","ID","Descripción","Lote","Caducidad","Cajas","Pz x Caja","Pz x Tarima"]];
+  state.scans.forEach((s,i)=>{ const dt=new Date(s.ts); aoa.push([i+1,s.id||'',s.descripcion||'',s.lote||'',s.caducidad||'',s.cajas??0,s.pzcaja??0,s.pztarima??0]); });
   const csv=aoa.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob=new Blob([csv],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='inventario_'+Date.now()+'.csv'; a.click();
 }
