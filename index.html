@@ -3,45 +3,17 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ALDISAN – Avance de Escaneo (GS1 + feedback)</title>
+<title>ALDISAN – Avance de Escaneo (Fix cámara)</title>
 
-<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js" type="text/javascript"></script>
 
 <style>
-  :root{ --bg:#0b1220; --panel:#141824; --border:#1e2535; --ink:#eaf2ff; --muted:#9bb0c9; --brand:#00e5ff; --ok:#76f1a3; --warn:#ffd166; --err:#ff6b6b }
-  *{box-sizing:border-box}
-  body{margin:0;background:#0b1220;color:var(--ink);font-family:system-ui,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif}
-  header{padding:16px;background:#141824;border-bottom:1px solid var(--border)}
-  h1{margin:0;font-size:20px;color:var(--brand);text-shadow:0 0 6px #00e5ff}
+  body{margin:0;background:#0b1220;color:#eaf2ff;font-family:system-ui,Segoe UI,Roboto,sans-serif}
+  header{padding:16px;background:#141824;border-bottom:1px solid #1e2535}
+  h1{margin:0;font-size:20px;color:#00e5ff;text-shadow:0 0 6px #00e5ff}
   .wrap{padding:16px;max-width:1100px;margin:auto}
-  .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
-  @media (max-width: 980px){ .grid{grid-template-columns:1fr} }
-  .card{background:#141824;border:1px solid var(--border);border-radius:14px;box-shadow:0 10px 24px rgba(0,0,0,.35)}
-  .card .head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--border)}
-  .card .head h2{margin:0;font-size:15px;color:#cfe7ff}
-  .card .body{padding:12px}
-  .scanner{position:relative;min-height:320px;border:1px dashed #37507a;border-radius:12px;overflow:hidden;background:#0b1328}
-  .scan-frame{position:absolute;inset:10%;border:2px solid rgba(255,255,255,.35);border-radius:10px}
-  .scan-line{position:absolute;left:12%;right:12%;height:2px;background:linear-gradient(90deg,transparent,rgba(0,229,255,.7),transparent);animation:scan 2.2s infinite;box-shadow:0 0 8px rgba(0,229,255,.6)}
-  @keyframes scan{0%{top:14%} 50%{top:76%} 100%{top:14%}}
-  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  select,input[type=file]{background:#0f1524;color:var(--ink);border:1px solid var(--border);border-radius:10px;padding:8px 10px}
-  button{padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:#0f1524;color:var(--ink);cursor:pointer}
-  button.primary{background:linear-gradient(180deg,#0fd6ff,#00b8ff);color:#00202a;border:0;font-weight:600}
-  button.good{background:#103222;border-color:#165c3b;color:#8bf3b9}
-  button.warn{background:#3b2a00;border-color:#5d4400;color:#ffd26e}
-  .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--border);border-radius:999px;background:#0f1524;color:#b7c7e3;font-size:12px}
-  .totals{display:flex;gap:12px;flex-wrap:wrap}
-  .kpi{background:#0f1524;border:1px solid var(--border);padding:10px 12px;border-radius:12px}
-  .kpi b{font-size:18px}
-  table{width:100%;border-collapse:collapse}
-  th,td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;font-size:13px}
-  th{color:#a8c4ff}
-  tbody tr:hover{background:#0c1426}
-  .hint{font-size:12px;color:var(--muted)}
-  .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)}
-  pre{background:#0f1524;border:1px solid var(--border);border-radius:10px;padding:10px;overflow:auto;white-space:pre-wrap}
-  @media print{ header,.no-print{display:none !important}; body{background:#fff;color:#000} .card{box-shadow:none;border-color:#ddd} }
+  .scanner{position:relative;min-height:320px;border:1px dashed #37507a;border-radius:12px;background:#0b1328}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid #1e2535;border-radius:999px;background:#0f1524;color:#b7c7e3;font-size:12px}
 </style>
 </head>
 <body>
@@ -50,370 +22,44 @@
     <div class="pill" id="status">Listo</div>
   </header>
   <div class="wrap">
-    <div class="grid">
-      <section class="card">
-        <div class="head"><h2>1) Escaneo</h2></div>
-        <div class="body">
-          <div class="row no-print" style="gap:10px;margin-bottom:10px">
-            <button class="primary" id="btnStart">Iniciar cámara (trasera)</button>
-            <button id="btnStop">Detener cámara</button>
-            <select id="selCamera" title="Cámara" style="min-width:220px"></select>
-            <button id="btnList">Actualizar lista</button>
-          </div>
-          <div id="reader" class="scanner no-print" aria-label="visor de cámara">
-            <div class="scan-frame"></div>
-            <div class="scan-line"></div>
-          </div>
-          <div class="row no-print" style="gap:10px;margin:10px 0 4px">
-            <input id="fileInput" type="file" accept="image/*" capture="environment" />
-            <button id="btnScanImg">Escanear desde imagen</button>
-            <button id="btnPaste">Pegar texto/QR</button>
-            <button id="btnToggleDbg">Mostrar depuración</button>
-          </div>
-          <div id="dbg" class="hint" style="display:none"></div>
-          <div class="hint">Si ves "NotAllowedError": abre en <b>https</b> (o <b>localhost</b>), permite cámara y usa <i>Escanear desde imagen</i> como alternativa.</div>
-        </div>
-      </section>
-
-      <section class="card">
-        <div class="head"><h2>2) Avance</h2></div>
-        <div class="body">
-          <div class="totals">
-            <div class="kpi"><div>Tarimas</div><b id="kTarimas">0</b></div>
-            <div class="kpi"><div>Cajas</div><b id="kCajas">0</b></div>
-            <div class="kpi"><div>Piezas</div><b id="kPiezas">0</b></div>
-          </div>
-          <h3 style="margin:12px 0 6px">Resumen por producto</h3>
-          <div style="overflow:auto;max-height:280px;border:1px solid var(--border);border-radius:10px">
-            <table id="tblResumen">
-              <thead>
-                <tr>
-                  <th>Producto</th>
-                  <th>Descripción</th>
-                  <th>Lote</th>
-                  <th>Caducidad</th>
-                  <th>Tarimas</th>
-                  <th>Cajas</th>
-                  <th>Piezas</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-          <div class="row no-print" style="margin-top:10px">
-            <button class="good" id="btnFinalize">Finalizar inventario</button>
-            <button class="warn" id="btnClear">Limpiar borrador</button>
-          </div>
-        </div>
-      </section>
-    </div>
-
-    <section class="card" style="margin-top:16px">
-      <div class="head"><h2>3) Detalle de lecturas</h2></div>
-      <div class="body">
-        <div style="overflow:auto;max-height:420px;border:1px solid var(--border);border-radius:10px">
-          <table id="tblDetalle">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>UID</th>
-                <th>Producto</th>
-                <th>Descripción</th>
-                <th>Lote</th>
-                <th>Caducidad</th>
-                <th>Cajas</th>
-                <th>Piezas</th>
-                <th>Hora</th>
-                <th class="no-print">Acción</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <section class="card no-print" style="margin-top:16px">
-      <div class="head"><h2>4) Pruebas automáticas</h2></div>
-      <div class="body">
-        <div class="row" style="gap:10px;margin-bottom:8px">
-          <button id="btnRunTests">Probar / Tests</button>
-          <span class="hint">Verifica el parser sin usar cámara.</span>
-        </div>
-        <pre id="testLog" aria-live="polite" style="max-height:220px"></pre>
-      </div>
-    </section>
+    <button id="btnStart">Iniciar cámara (trasera)</button>
+    <button id="btnStop">Detener cámara</button>
+    <select id="selCamera"></select>
+    <div id="reader" class="scanner"></div>
   </div>
 
 <script>
 (function(){
-  // ===== Estado & Persistencia =====
-  const LS_DRAFT='inv_qr_draft_v4';
-  const LS_HIST='inv_qr_hist_v4';
-  let scans = loadDraft();
-  let html5Qrcode = null; let currentCamId = null;
-  let lastAcceptedRaw = null; let lastAcceptedAt = 0; const ACCEPT_SAME_MS = 1200;
+  let html5Qrcode=null; let currentCamId=null;
+  const $=s=>document.querySelector(s);
+  const status=(m)=>{$('#status').textContent=m;};
 
-  const $ = (s)=>document.querySelector(s);
-  const status = (m, cls='')=>{ const el=$('#status'); if(!el) return; el.textContent=m; el.className='pill '+cls; };
-  const esc = (s)=> (s==null?'':String(s)).replace(/[&<>]/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
-  const num = (v)=>{ const n=Number(v); return isFinite(n)? n : 0; };
+  $('#btnStart').addEventListener('click', startCam);
+  $('#btnStop').addEventListener('click', stopCam);
 
-  // Audio + vibración
-  let audioCtx=null; function beep(){ try{ audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)(); const o=audioCtx.createOscillator(); const g=audioCtx.createGain(); o.type='square'; o.frequency.value=880; g.gain.setValueAtTime(0.0001,audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.25,audioCtx.currentTime+0.01); g.gain.exponentialRampToValueAtTime(0.0001,audioCtx.currentTime+0.16); o.connect(g).connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+0.18);}catch(e){} }
-  function vib(){ try{ if(navigator.vibrate) navigator.vibrate(60); }catch(e){} }
-
-  // Init
-  renderAll(); populateCameraList();
-
-  // Controles
-  $('#btnStart').addEventListener('click', startPreferredCamera);
-  $('#btnStop').addEventListener('click', stopCamera);
-  $('#btnList').addEventListener('click', populateCameraList);
-  $('#selCamera').addEventListener('change', (e)=>{ currentCamId=e.target.value||null; });
-  $('#btnPaste').addEventListener('click', onPasteText);
-  $('#btnScanImg').addEventListener('click', onScanImage);
-  $('#btnToggleDbg').addEventListener('click', ()=>{ const d=$('#dbg'); d.style.display = d.style.display==='none'? 'block':'none'; });
-  $('#btnClear').addEventListener('click', ()=>{ if(confirm('¿Borrar borrador actual?')){ scans=[]; saveDraft(); renderAll(); status('Borrador limpio','ok'); } });
-  $('#btnFinalize').addEventListener('click', finalizeInventory);
-  $('#btnRunTests').addEventListener('click', runTests);
-
-  // ===== Cámara =====
-  async function populateCameraList(){
+  async function populate(){
     try{
-      const sel=$('#selCamera'); sel.innerHTML='';
       const cams=await Html5Qrcode.getCameras();
-      if(!cams||cams.length===0){ sel.innerHTML='<option value="">(sin cámaras)</option>'; status('Sin cámaras detectadas','warn'); return; }
-      cams.sort((a,b)=> scoreCam(b.label)-scoreCam(a.label));
-      for(const c of cams){ const opt=document.createElement('option'); opt.value=c.id; opt.textContent=c.label||('Cámara '+c.id.slice(-4)); sel.appendChild(opt); }
-      const back=cams.find(c=>/back|rear|environment|trás/i.test(c.label));
-      sel.value = (back? back.id : cams[0].id); currentCamId = sel.value; status('Cámaras listas');
-    }catch(e){ status('No se pudieron enumerar cámaras','warn'); }
+      const sel=$('#selCamera'); sel.innerHTML='';
+      if(cams.length===0){status('Sin cámaras');return;}
+      cams.forEach(c=>{const opt=document.createElement('option');opt.value=c.id;opt.textContent=c.label||c.id;sel.appendChild(opt);});
+      const back=cams.find(c=>/back|rear|environment/i.test(c.label));
+      sel.value=back?back.id:cams[0].id; currentCamId=sel.value;
+    }catch(e){status('Error listando cámaras: '+e.message);}
   }
-  function scoreCam(label=''){ const l=label.toLowerCase(); if(l.includes('back')||l.includes('rear')||l.includes('environment')||l.includes('trás')) return 2; if(l.includes('front')||l.includes('user')||l.includes('webcam')) return 1; return 0; }
 
-  async function startPreferredCamera(){
-    const isSecure = location.protocol==='https:' || location.hostname==='localhost' || location.hostname==='127.0.0.1'; if(!isSecure){ status('Usa HTTPS o localhost para cámara','warn'); }
+  async function startCam(){
+    await populate();
     try{
-      if(html5Qrcode){ await html5Qrcode.stop(); html5Qrcode.clear(); }
-      html5Qrcode = new Html5Qrcode('reader'); if(!currentCamId){ await populateCameraList(); }
-      await html5Qrcode.start({ deviceId:{ exact: currentCamId } }, { fps:15, qrbox:{width:280,height:280}, aspectRatio:1 }, onScan, (err)=>{} );
-      status('Cámara activa','ok');
-    }catch(e){ console.error('startPreferredCamera',e); if(String(e?.name).includes('NotAllowedError')) status('Permiso denegado: habilita cámara o usa imagen','err'); else status('No se pudo iniciar cámara: '+(e?.message||e),'err'); }
+      if(html5Qrcode){await html5Qrcode.stop(); html5Qrcode.clear();}
+      html5Qrcode=new Html5Qrcode('reader');
+      await html5Qrcode.start({deviceId:{exact:currentCamId}}, {fps:10, qrbox:250}, onScan);
+      status('Cámara activa');
+    }catch(e){console.error(e);status('No se pudo iniciar cámara: '+e.message);}
   }
-  async function stopCamera(){ try{ if(html5Qrcode){ await html5Qrcode.stop(); html5Qrcode.clear(); status('Cámara detenida'); } }catch(e){ status('No se pudo detener'); } }
+  async function stopCam(){ try{ if(html5Qrcode){await html5Qrcode.stop(); html5Qrcode.clear(); status('Cámara detenida');} }catch(e){} }
 
-  function onScan(decodedText){
-    const now=Date.now(); if(decodedText===lastAcceptedRaw && (now-lastAcceptedAt)<ACCEPT_SAME_MS) return; lastAcceptedRaw=decodedText; lastAcceptedAt=now;
-    $('#dbg').textContent = 'RAW: '+showRaw(decodedText);
-    onScanSuccess(decodedText);
-  }
-
-  function showRaw(t){ const vis = String(t).replace(/[\x00-\x1F\x7F]/g, ch=>{ const c=ch.charCodeAt(0).toString(16).padStart(2,'0'); return `<${c}>`; }); return vis; }
-
-  // ===== Escaneo =====
-  function onScanSuccess(text){
-    try{
-      const data = parseQR(text);
-      addScan(data);
-      beep(); vib();
-      status(`OK ▶ UID:${data.uid} · Prod:${data.producto||'—'} · Cajas:${data.cajas||0} · Pzs:${data.piezas||0}`,'ok');
-    }catch(e){ console.error(e); status('QR inválido','err'); }
-  }
-
-  async function onScanImage(){
-    const f=$('#fileInput').files?.[0]; if(!f) return alert('Selecciona una imagen primero');
-    try{ const reader=html5Qrcode || new Html5Qrcode('reader'); const result=await reader.scanFile(f,true); onScan(result); }
-    catch(e){ console.error(e); alert('No se pudo leer el QR de la imagen'); }
-  }
-  async function onPasteText(){
-    try{ const clip=await navigator.clipboard.readText(); if(!clip) return alert('Portapapeles vacío'); onScan(clip); }
-    catch(e){ const raw=prompt('Pega aquí el contenido del QR'); if(raw) onScan(raw); }
-  }
-
-  // ===== Parser (incluye GS1 / FNC1) =====
-  function parseQR(text){
-    const raw = String(text||'');
-
-    // A) TSV Aldisan: Operador ⇥ UID ⇥ Producto ⇥ Descripción ⇥ Lote ⇥ Caducidad ⇥ Cajas ⇥ PiezasCaja ⇥ Piezas
-    const tsv = (function(s){
-      // Limpiar símbolos visibles y CR
-      const cleaned = String(s)
-        .replace(/⇥/g,'	') // texto escapado (⇥) -> TAB real
-        .replace(/⇥/g,'	')      // símbolo visible -> TAB
-        .replace(/␍/g,'')         // símbolo visible de CR
-        .replace(/
-/g,'');       // CR real
-      const parts = /	/.test(cleaned) ? cleaned.split(/	/) : cleaned.split(/⇥/);
-      if(parts.length >= 6){
-        const [operador, folio, prod, desc, lote, cad, cajas, piezasCaja, piezas] = parts.map(x=>String(x||'').trim());
-        const obj = { uid: folio, producto: prod, descripcion: desc, lote, caducidad: cad };
-        if(cajas) obj.cajas = cajas;
-        if(piezasCaja) obj.piezasCaja = piezasCaja;
-        // Si piezas no viene o viene vacío, NORMALIZE calculará piezas = cajas * piezasCaja
-        if(piezas) obj.piezas = piezas;
-        try{ return normalize(obj); }catch{ /* sigue con otros formatos */ }
-      }
-      return null;
-    })(raw);
-    if(tsv) return tsv;
-
-    // B) GS1 con FNC1 (ASCII 29) o paréntesis AI
-    const gs = parseGS1(raw); if(gs) return gs;
-    const trimmed = raw.trim();
-
-    // C) JSON
-    try{ return normalize(JSON.parse(trimmed)); }catch{}
-
-    // D) URL con query
-    try{ const u=new URL(trimmed); const obj={}; u.searchParams.forEach((v,k)=>obj[k.toLowerCase()]=v); if(Object.keys(obj).length) return normalize(obj); }catch{}
-
-    // E) query suelta a=1&b=2
-    if(/[=&]/.test(trimmed)){ const obj={}; const qs=trimmed.replace(/^[^?]*\?/,''); const sp=new URLSearchParams(qs); sp.forEach((v,k)=>obj[k.toLowerCase()]=v); if(Object.keys(obj).length) return normalize(obj); }
-
-    // F) clave=valor o clave:valor separados por ; , | & o saltos de línea
-    const objKV={}; trimmed.split(/[
-;&|,]+/).map(s=>s.trim()).filter(Boolean).forEach(p=>{ const m=p.match(/^([^:=]+)[:=](.*)$/); if(m){ objKV[m[1].trim().toLowerCase()]=m[2].trim(); } }); if(Object.keys(objKV).length) return normalize(objKV);
-
-    // G) Solo números = EAN
-    if(/^[0-9]{8,14}$/.test(trimmed)) return normalize({ ean: trimmed });
-
-    // H) Base64 -> JSON
-    try{ const decoded=atob(trimmed); return normalize(JSON.parse(decoded)); }catch{}
-
-    throw new Error('Formato no reconocido');
-  }
-    // B) GS1 con FNC1/paréntesis
-    const gs = parseGS1(raw); if(gs) return gs;
-    const trimmed = raw.trim();
-    // C) JSON
-    try{ return normalize(JSON.parse(trimmed)); }catch{}
-    // D) URL con query
-    try{ const u=new URL(trimmed); const obj={}; u.searchParams.forEach((v,k)=>obj[k.toLowerCase()]=v); if(Object.keys(obj).length) return normalize(obj); }catch{}
-    // E) query suelta
-    if(/[=&]/.test(trimmed)){ const obj={}; const qs=trimmed.replace(/^[^?]*\?/,''); const sp=new URLSearchParams(qs); sp.forEach((v,k)=>obj[k.toLowerCase()]=v); if(Object.keys(obj).length) return normalize(obj); }
-    // F) clave=valor o clave:valor
-    const objKV={}; trimmed.split(/[
-;&|,]+/).map(s=>s.trim()).filter(Boolean).forEach(p=>{ const m=p.match(/^([^:=]+)[:=](.*)$/); if(m){ objKV[m[1].trim().toLowerCase()]=m[2].trim(); } }); if(Object.keys(objKV).length) return normalize(objKV);
-    // G) Solo números = EAN
-    if(/^[0-9]{8,14}$/.test(trimmed)) return normalize({ ean: trimmed });
-    // H) Base64 -> JSON
-    try{ const decoded=atob(trimmed); return normalize(JSON.parse(decoded)); }catch{}
-    throw new Error('Formato no reconocido');
-  }
-
-  function parseGS1(raw){
-    // Reemplaza FNC1 (ASCII 29) por separador visual | para parsing
-    const txt = String(raw).replace(/[\x1D]/g,'|');
-    // AIs comunes: (01)GTIN14 (10)Lote var (17)YYMMDD (37)Cantidad (21)Serie/UID (30)Cajas
-    // También soporta formato con paréntesis o sin ellos (ej: 011234...10ABC|17301231)
-    // Con paréntesis
-    const withParens = /\(01\)(\d{14})(?:\(21\)([^|\(\)]{1,20}))?(?:\(10\)([^|\(\)]{1,20}))?(?:\(17\)(\d{6}))?(?:\(37\)(\d{1,8}))?(?:\(30\)(\d{1,8}))?/;
-    let m = txt.match(withParens);
-    if(!m){
-      // Sin paréntesis, delimitado por FNC1/|
-      m = txt.match(/01(\d{14}).*?(?:21([^|]{1,20}))?.*?(?:10([^|]{1,20}))?.*?(?:17(\d{6}))?.*?(?:37(\d{1,8}))?.*?(?:30(\d{1,8}))?/);
-    }
-    if(m){
-      const gtin=m[1]; const ser=m[2]; const lot=m[3]; const yymmdd=m[4]; const qty37=m[5]; const cjs30=m[6];
-      const cad = yymmdd? ('20'+yymmdd.slice(0,2)+'-'+yymmdd.slice(2,4)+'-'+yymmdd.slice(4,6)) : '';
-      return normalize({ ean: gtin, uid: ser, lote: lot, caducidad: cad, piezas: qty37, cajas: cjs30 });
-    }
-    return null;
-  }
-
-  function normalize(o){
-    const lower={}; Object.keys(o||{}).forEach(k=> lower[String(k).toLowerCase()]=o[k]);
-    const g=(...keys)=>{ for(const k of keys){ const v=lower[k]; if(v!=null && String(v).trim()!=='') return String(v).trim(); } return ''; };
-    const n=(...keys)=>{ for(const k of keys){ if(lower[k]!=null){ const v=String(lower[k]).replace(/[^0-9.\-]/g,''); const num=Number(v); if(isFinite(num)) return num; } } return 0; };
-
-    const uid = g('uid','id','folio','tarima','serie','qr','uuid','serial','21');
-    const producto = g('producto','ean','upc','codigo','código','sku','id_producto','articulo','artículo','01');
-    const descripcion = g('descripcion','descripción','desc','nombre');
-    const piezasCaja = n('piezascaja','piezas_caja','pzsxcaja','pzasxcaja','pxc','pcsxcaja');
-    let cajas = n('cajas','bx','cj','cjas','cjs','caj','cajas_totales','cajastotales','30');
-    let piezas = n('piezas','pz','pzas','pzs','cantidad','qty','piezas_totales','total_piezas','37');
-    if(!piezas && cajas && piezasCaja) piezas = cajas * piezasCaja;
-    if(!cajas && piezas && piezasCaja) cajas = Math.round(piezas / (piezasCaja||1));
-    const lote = g('lote','lot','10');
-    const caducidad = g('caducidad','cad','expira','exp','fecha_cad','fecha_caducidad','fcad','17');
-
-    return { uid: uid || ('UID-'+Date.now()), producto, descripcion, cajas, piezas, lote, caducidad, ts:new Date().toISOString() };
-  }
-
-  // ===== Modelo de datos =====
-  function addScan(obj){ scans.push(obj); saveDraft(); renderAll(); }
-  function groupBy(){
-    const map=new Map();
-    for(const s of scans){
-      const key=(s.producto||'')+'|'+(s.lote||'')+'|'+(s.caducidad||'');
-      const acc=map.get(key)||{producto:s.producto,descripcion:s.descripcion,lote:s.lote,caducidad:s.caducidad,tarimas:0,cajas:0,piezas:0};
-      acc.tarimas+=1; acc.cajas+=num(s.cajas); acc.piezas+=num(s.piezas);
-      if((s.descripcion||'').length>(acc.descripcion||'').length) acc.descripcion=s.descripcion;
-      map.set(key,acc);
-    }
-    return [...map.values()];
-  }
-  function kpis(){ return { tarimas:scans.length, cajas:scans.reduce((a,b)=>a+num(b.cajas),0), piezas:scans.reduce((a,b)=>a+num(b.piezas),0) }; }
-
-  // ===== Render =====
-  function renderAll(){
-    const k=kpis(); $('#kTarimas').textContent=k.tarimas; $('#kCajas').textContent=k.cajas; $('#kPiezas').textContent=k.piezas;
-    $('#tblDetalle tbody').innerHTML=scans.map((s,i)=>`<tr>
-      <td>${i+1}</td>
-      <td>${esc(s.uid)}</td>
-      <td>${esc(s.producto||'')}</td>
-      <td>${esc(s.descripcion||'')}</td>
-      <td>${esc(s.lote||'')}</td>
-      <td>${esc(s.caducidad||'')}</td>
-      <td>${num(s.cajas)}</td>
-      <td>${num(s.piezas)}</td>
-      <td>${new Date(s.ts).toLocaleTimeString()}</td>
-      <td class="no-print"><button onclick="__app.del(${i})">Eliminar</button></td>
-    </tr>`).join('');
-    const resumen=groupBy();
-    $('#tblResumen tbody').innerHTML=resumen.map(r=>`<tr>
-      <td>${esc(r.producto||'')}</td>
-      <td>${esc(r.descripcion||'')}</td>
-      <td>${esc(r.lote||'')}</td>
-      <td>${esc(r.caducidad||'')}</td>
-      <td>${r.tarimas}</td>
-      <td>${r.cajas}</td>
-      <td>${r.piezas}</td>
-    </tr>`).join('');
-  }
-
-  // ===== Persistencia =====
-  function saveDraft(){ try{ localStorage.setItem(LS_DRAFT, JSON.stringify(scans)); }catch(e){} }
-  function loadDraft(){ try{ const s=localStorage.getItem(LS_DRAFT); return s? JSON.parse(s): []; }catch(e){ return []; } }
-  function pushHistory(entry){ try{ const raw=localStorage.getItem(LS_HIST); const arr=raw? JSON.parse(raw): []; arr.push(entry); localStorage.setItem(LS_HIST, JSON.stringify(arr)); }catch(e){} }
-  function finalizeInventory(){ if(scans.length===0){ alert('No hay lecturas para finalizar'); return; } const payload={createdAt:new Date().toISOString(), totalTarimas:scans.length, totalCajas:scans.reduce((a,b)=>a+num(b.cajas),0), totalPiezas:scans.reduce((a,b)=>a+num(b.piezas),0), items:scans}; pushHistory(payload); scans=[]; saveDraft(); renderAll(); status('Inventario finalizado y guardado','ok'); alert('Inventario finalizado. Tarimas: '+payload.totalTarimas+' | Cajas: '+payload.totalCajas+' | Piezas: '+payload.totalPiezas); }
-
-  window.__app={ del:(i)=>{ scans.splice(i,1); saveDraft(); renderAll(); } };
-
-  // ===== Tests =====
-  function runTests(){
-    const log=$('#testLog'); log.textContent='';
-    const GS1_FNC1 = "(01)01234567890123(10)LOT123(17)250101(37)48"; // GTIN14 + Lote + Cad + Cant
-    const GS1_RAW = "01"+"01234567890123"+String.fromCharCode(29)+"10LOT123"+String.fromCharCode(29)+"17301231"+String.fromCharCode(29)+"3748";
-    const cases=[
-      {name:'JSON cajas×piezasCaja', input: JSON.stringify({uid:'T-1', ean:'7501234567890', cajas:10, piezasCaja:24}), expect:{tarimas:1,cajas:10,piezas:240}},
-      {name:'KV piezas directas', input:'UID=ABC; producto=88888888; piezas=50', expect:{tarimas:1,cajas:0,piezas:50}},
-      {name:'URL con query', input:'https://x.test/?uid=U-3&ean=12345678&cajas=5&piezasCaja=10', expect:{tarimas:1,cajas:5,piezas:50}},
-      {name:'GS1 con paréntesis', input: GS1_FNC1, expect:{tarimas:1,cajas:0,piezas:48}},
-      {name:'GS1 con FNC1 (ASCII 29)', input: GS1_RAW, expect:{tarimas:1,cajas:0,piezas:48}},
-      {name:'TSV Aldisan (⇥ y ␍)', input:'MANUEL⇥20250827-0011⇥10560⇥EMULSION DIA BE CALM 400ML⇥WGH06034⇥2028-06-04⇥60⇥12⇥720␍', expect:{tarimas:1,cajas:60,piezas:720}},
-    ];
-    const tmp=[]; let pass=0;
-    for(const tc of cases){
-      const o=parseQR(tc.input); tmp.push(o);
-      const k={ tarimas: tmp.length, cajas: tmp.reduce((a,b)=>a+num(b.cajas),0), piezas: tmp.reduce((a,b)=>a+num(b.piezas),0) };
-      const ok=(k.tarimas===tc.expect.tarimas && k.cajas===tc.expect.cajas && k.piezas===tc.expect.piezas);
-      pass+=ok?1:0; log.textContent += `\n[${ok?'OK':'FAIL'}] ${tc.name} => ${JSON.stringify(k)} esperado ${JSON.stringify(tc.expect)}`;
-    }
-    log.textContent += `\n\n${pass===cases.length?'Todas las pruebas pasaron ✔':'Algunas pruebas fallaron ✖'}`;
-    status(pass===cases.length?'Tests OK':'Revisa pruebas', pass===cases.length?'ok':'warn');
-  }
+  function onScan(txt){ status('Leído: '+txt); }
 })();
 </script>
 </body>
