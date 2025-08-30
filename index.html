@@ -3,416 +3,132 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ALDISAN – Inventario por QR de Tarimas</title>
+<title>ALDISAN – Avance de Escaneo</title>
 
-<!-- Librerías (si haces APK, sirve locales en ./libs) -->
-<link rel="preconnect" href="https://cdnjs.cloudflare.com"/>
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <style>
-  :root{
-    --bg:#0b1220; --panel:#141824; --border:#1e2535; --ink:#eaf2ff; --muted:#9bb0c9; --brand:#00e5ff; --accent:#7cf3ff;
-    --ok:#35d07f; --warn:#ffcc00; --err:#ff5370;
-  }
-  *{box-sizing:border-box}
-  html,body{height:100%;}
-  body{margin:0;background:radial-gradient(1000px 500px at 30% -10%,#0f2027,#203a43,#2c5364);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;}
-  header{padding:16px 20px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#0b1220,rgba(11,18,32,.6));position:sticky;top:0;z-index:20}
-  .brand{display:flex;gap:12px;align-items:center}
-  .brand h1{font-size:20px;letter-spacing:.5px;margin:0;color:var(--brand);text-shadow:0 0 8px rgba(0,229,255,.45)}
-  .wrap{max-width:1200px;margin:0 auto;padding:18px}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  @media (max-width: 1000px){.grid{grid-template-columns:1fr}}
-
-  .card{background:rgba(20,24,36,.9);border:1px solid var(--border);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.4);}
-  .card .head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border)}
-  .card .head h2{margin:0;font-size:16px;color:#cfe7ff}
-  .card .body{padding:14px 16px}
-
-  .row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-  @media (max-width: 800px){.row{grid-template-columns:1fr 1fr}}
-  label{font-size:12px;color:var(--muted)}
-  input,select,textarea{width:100%;padding:10px;border-radius:12px;border:1px solid var(--border);background:#0f1524;color:var(--ink)}
-
-  .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
-  button{padding:10px 14px;border:1px solid var(--border);background:#0f1524;color:var(--ink);border-radius:12px;cursor:pointer}
-  button.primary{background:linear-gradient(180deg,#0fd6ff,#00b8ff);color:#00202a;border:0;font-weight:600}
-  button.good{background:#103222;border-color:#165c3b;color:#8bf3b9}
-  button.warn{background:#3b2a00;border-color:#5d4400;color:#ffd26e}
-  button.ghost{background:transparent}
-
-  .scanner{min-height:280px;border-radius:12px;overflow:hidden;border:1px dashed #37507a;background:#0b1328}
-  .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;background:#0b1524;border:1px solid var(--border);border-radius:999px;color:#b7c7e3;font-size:12px}
-
-  table{width:100%;border-collapse:collapse}
-  th,td{padding:10px;border-bottom:1px solid var(--border);text-align:left;font-size:13px}
-  th{color:#a8c4ff;font-weight:600}
+  body{margin:0;background:#0b1220;color:#eaf2ff;font-family:system-ui,Segoe UI,Roboto,sans-serif;}
+  header{padding:16px;background:#141824;border-bottom:1px solid #1e2535;text-align:center}
+  header h1{margin:0;font-size:20px;color:#00e5ff;text-shadow:0 0 6px #00e5ff}
+  .wrap{padding:20px;max-width:900px;margin:auto}
+  .scanner{min-height:280px;border:1px dashed #37507a;border-radius:12px;overflow:hidden;background:#0b1328}
+  .totals{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;margin:20px 0}
+  .kpi{background:#141824;border:1px solid #1e2535;padding:12px 18px;border-radius:12px;text-align:center}
+  .kpi div{font-size:14px;color:#9bb0c9}
+  .kpi b{font-size:22px;display:block;margin-top:4px}
+  table{width:100%;border-collapse:collapse;margin-top:20px}
+  th,td{padding:8px 10px;border-bottom:1px solid #1e2535;text-align:left;font-size:13px}
+  th{color:#a8c4ff}
   tbody tr:hover{background:#0c1426}
-
-  .totals{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px}
-  .totals .kpi{background:#0f1524;border:1px solid var(--border);padding:10px 12px;border-radius:12px}
-  .kpi b{font-size:18px}
-
-  @media print{
-    header,.no-print{display:none !important}
-    body{background:white;color:black}
-    .card{box-shadow:none;border-color:#ddd}
-  }
+  button{margin-top:10px;padding:10px 14px;border-radius:8px;border:1px solid #1e2535;background:#0f1524;color:#eaf2ff;cursor:pointer}
+  button:hover{background:#152033}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:12px}
 </style>
 </head>
 <body>
   <header>
-    <div class="brand">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 12a9 9 0 1 1 18 0 9 9 0 0 1-18 0Zm4.5 0A4.5 4.5 0 0 0 12 16.5 4.5 4.5 0 0 0 16.5 12 4.5 4.5 0 0 0 12 7.5 4.5 4.5 0 0 0 7.5 12Z" stroke="#00e5ff"/></svg>
-      <h1>ALDISAN – Inventario por QR de Tarimas</h1>
-      <span class="pill" id="status-pill">Listo</span>
-    </div>
+    <h1>ALDISAN – Avance de Escaneo</h1>
+    <div id="status" style="color:#9bb0c9;font-size:12px">Listo</div>
   </header>
-
   <div class="wrap">
-    <div class="grid">
-      <!-- Panel: Captura / Escaneo -->
-      <section class="card">
-        <div class="head"><h2>1) Captura y escaneo</h2></div>
-        <div class="body">
-          <div class="row">
-            <div>
-              <label>Operador</label>
-              <input id="operador" placeholder="Nombre del operador"/>
-            </div>
-            <div>
-              <label>Almacén / Ubicación</label>
-              <input id="almacen" placeholder="Ej. Principal / Andén 1"/>
-            </div>
-            <div>
-              <label>Documento (Factura / Pedido / Referencia)</label>
-              <input id="documento" placeholder="Opcional"/>
-            </div>
-            <div>
-              <label>Permitir duplicados</label>
-              <select id="duplicados"><option value="no">No</option><option value="si">Sí</option></select>
-            </div>
-          </div>
+    <div id="reader" class="scanner"></div>
 
-          <div class="actions no-print">
-            <button class="primary" id="btnStart">Iniciar cámara</button>
-            <button class="ghost" id="btnStop">Detener cámara</button>
-            <button class="ghost" id="btnPaste">Pegar texto/QR</button>
-            <button class="ghost" id="btnManual">Captura manual</button>
-            <button class="warn" id="btnClear">Limpiar todo</button>
-          </div>
-
-          <div id="reader" class="scanner no-print" aria-label="visor de cámara"></div>
-          <small style="display:block;margin-top:8px;color:var(--muted)">Formato de QR soportado: <b>JSON</b> o "<i>clave=valor;clave2=valor2</i>". Campos esperados: <code>uid</code>, <code>producto</code> o <code>ean</code>, <code>descripcion</code>, <code>lote</code>, <code>caducidad</code>, <code>piezas</code> o <code>cantidad</code> o (<code>cajas</code> x <code>piezasCaja</code>).</small>
-        </div>
-      </section>
-
-      <!-- Panel: Totales / Resumen -->
-      <section class="card">
-        <div class="head"><h2>2) Totales</h2></div>
-        <div class="body">
-          <div class="totals">
-            <div class="kpi"><div>Tarimas escaneadas</div><b id="kTarimas">0</b></div>
-            <div class="kpi"><div>Productos únicos</div><b id="kProductos">0</b></div>
-            <div class="kpi"><div>Piezas totales</div><b id="kPiezas">0</b></div>
-          </div>
-
-          <h3 style="margin:14px 0 6px">Resumen por producto</h3>
-          <div style="overflow:auto;max-height:360px;border:1px solid var(--border);border-radius:12px">
-            <table id="tblResumen">
-              <thead>
-                <tr>
-                  <th>Producto</th>
-                  <th>Descripción</th>
-                  <th>Lote</th>
-                  <th>Caducidad</th>
-                  <th>Tarimas</th>
-                  <th>Piezas</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-
-          <div class="actions no-print">
-            <button class="good" id="btnExcel">Exportar Excel</button>
-            <button class="ghost" id="btnPrint">Imprimir / PDF</button>
-          </div>
-        </div>
-      </section>
+    <div class="totals">
+      <div class="kpi"><div>Tarimas</div><b id="kTarimas">0</b></div>
+      <div class="kpi"><div>Cajas</div><b id="kCajas">0</b></div>
+      <div class="kpi"><div>Piezas</div><b id="kPiezas">0</b></div>
     </div>
 
-    <!-- Detalle -->
-    <section class="card" style="margin-top:16px">
-      <div class="head"><h2>3) Detalle de lecturas</h2></div>
-      <div class="body">
-        <div style="overflow:auto;max-height:420px;border:1px solid var(--border);border-radius:12px">
-          <table id="tblDetalle">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>UID</th>
-                <th>Producto</th>
-                <th>Descripción</th>
-                <th>Lote</th>
-                <th>Caducidad</th>
-                <th>Piezas</th>
-                <th>Hora</th>
-                <th>Origen</th>
-                <th class="no-print">Acción</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>UID</th>
+          <th>Producto</th>
+          <th>Cajas</th>
+          <th>Piezas</th>
+          <th>Hora</th>
+        </tr>
+      </thead>
+      <tbody id="detalle"></tbody>
+    </table>
+
+    <div class="actions">
+      <button onclick="finalizarInventario()">Finalizar inventario</button>
+      <button onclick="clearAll()">Limpiar todo</button>
+    </div>
   </div>
 
 <script>
 (function(){
-  const $ = (sel)=>document.querySelector(sel);
-  const $$ = (sel)=>document.querySelectorAll(sel);
-  const keyLS = 'inv_qr_tarimas_v1';
+  const keyLS = 'inventario_avance_qr';
   let scans = loadLS();
-  let html5Qrcode = null;
+  let html5Qrcode;
 
-  // UI refs
-  const statusPill = $('#status-pill');
-  const tBodyDetalle = $('#tblDetalle tbody');
-  const tBodyResumen = $('#tblResumen tbody');
+  function status(msg){ document.getElementById('status').textContent = msg; }
 
-  // Init
-  renderAll();
-
-  // === Botones ===
-  $('#btnStart').onclick = startCamera;
-  $('#btnStop').onclick  = stopCamera;
-  $('#btnPaste').onclick = pasteText;
-  $('#btnManual').onclick= manualCapture;
-  $('#btnClear').onclick = clearAll;
-  $('#btnPrint').onclick = ()=>window.print();
-  $('#btnExcel').onclick = exportExcel;
-
-  // === Cámara ===
-  async function startCamera(){
-    try{
-      status('Iniciando cámara…');
-      if(html5Qrcode){ await html5Qrcode.stop(); html5Qrcode.clear(); }
-      html5Qrcode = new Html5Qrcode("reader");
-      const cameras = await Html5Qrcode.getCameras();
+  function startCamera(){
+    html5Qrcode = new Html5Qrcode("reader");
+    Html5Qrcode.getCameras().then(cameras=>{
       const camId = cameras?.[0]?.id;
-      await html5Qrcode.start(
-        { deviceId:{ exact: camId } },
-        { fps: 15, qrbox: { width: 280, height: 280 }, aspectRatio: 1 },
-        onScanSuccess,
-        (err)=>{/* silencioso */}
-      );
+      html5Qrcode.start({ deviceId:{ exact: camId } },{ fps:10, qrbox:250 },onScanSuccess);
       status('Cámara activa');
-    }catch(e){ status('No se pudo iniciar cámara', true); console.error(e); }
+    }).catch(()=>status('Error al iniciar cámara'));
   }
 
-  async function stopCamera(){
+  function onScanSuccess(text){
     try{
-      if(html5Qrcode){ await html5Qrcode.stop(); html5Qrcode.clear(); status('Cámara detenida'); }
-    }catch(e){ console.warn(e); }
+      const data = parseQR(text);
+      addScan(data);
+    }catch(e){ status('QR inválido'); }
   }
 
-  function onScanSuccess(text, result){
-    try{
-      const obj = parseQR(text);
-      addScan(obj, text);
-    }catch(e){
-      alert('QR inválido / no parseable');
-      console.error('parse error', e);
-    }
-  }
-
-  // === Capturas alternativas ===
-  async function pasteText(){
-    try{
-      const clip = await navigator.clipboard.readText();
-      if(!clip) return alert('Portapapeles vacío');
-      const obj = parseQR(clip);
-      addScan(obj, clip);
-    }catch(e){ alert('No fue posible leer/parsear el portapapeles'); }
-  }
-
-  function manualCapture(){
-    const raw = prompt('Pega aquí el contenido del QR (JSON o clave=valor;...)');
-    if(!raw) return;
-    try{
-      const obj = parseQR(raw);
-      addScan(obj, raw);
-    }catch(e){ alert('Contenido inválido'); }
-  }
-
-  // === Lógica principal ===
   function parseQR(text){
-    // 1) JSON
-    try{ const o = JSON.parse(text); return normalize(o); }catch{ /* sigue */ }
-    // 2) clave=valor;clave=valor
-    const obj = {};
-    text.split(/[;\n]+/).map(s=>s.trim()).filter(Boolean).forEach(pair=>{
-      const [k,...rest] = pair.split('=');
-      if(!k) return; obj[k.trim().toLowerCase()] = rest.join('=')?.trim();
-    });
-    if(Object.keys(obj).length===0) throw new Error('sin campos');
+    try{ return normalize(JSON.parse(text)); }catch{}
+    const obj={};
+    text.split(/[;\n]+/).forEach(p=>{ const [k,...r]=p.split('='); if(k) obj[k.trim().toLowerCase()]=r.join('=')?.trim(); });
     return normalize(obj);
   }
 
   function normalize(o){
-    // Campos canónicos
-    const uid = str(o.uid || o.id || o.serie || '');
-    const producto = str(o.producto || o.ean || o.codigo || o.sku || '');
-    const descripcion = str(o.descripcion || o.desc || o.nombre || '');
-    const lote = str(o.lote || o.batch || '');
-    const caducidad = str(o.caducidad || o.expira || o.fecha_cad || o.exp || '');
-
-    // Piezas: prioridad piezas/cantidad; si no, cajas*piezasCaja
-    const piezas = num(o.piezas ?? o.cantidad ?? o.qty ?? ( (num(o.cajas)*num(o.piezascaja)) || 0 ));
-
-    if(!producto && !uid) throw new Error('Faltan producto/uid');
-    return { uid: uid||autogenUid(), producto, descripcion, lote, caducidad, piezas };
+    const uid=o.uid||Date.now();
+    const producto=o.producto||o.ean||'';
+    const cajas=Number(o.cajas||0);
+    const piezasCaja=Number(o.piezascaja||o.pxc||0);
+    const piezas=Number(o.piezas||o.cantidad||cajas*piezasCaja||0);
+    return {uid,producto,cajas,piezas,ts:new Date().toISOString()};
   }
 
-  function autogenUid(){ return 'UID-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,7); }
-  function str(v){ return (v??'').toString().trim(); }
-  function num(v){ const n = Number(v); return isFinite(n) ? n : 0; }
-
-  function addScan(obj, rawText){
-    const allowDup = $('#duplicados').value === 'si';
-    const meta = {
-      ts: new Date().toISOString(),
-      operador: $('#operador').value.trim(),
-      almacen:  $('#almacen').value.trim(),
-      documento:$('#documento').value.trim(),
-      raw: rawText||''
-    };
-
-    if(!allowDup && obj.uid){
-      const exists = scans.find(s=>s.uid===obj.uid);
-      if(exists){
-        toast('UID ya capturado (duplicados desactivados)');
-        return;
-      }
-    }
-
-    scans.push({ ...obj, ...meta });
+  function addScan(obj){
+    scans.push(obj);
     saveLS();
-    renderAll();
+    render();
   }
 
-  function removeScan(idx){
-    scans.splice(idx,1); saveLS(); renderAll();
+  function render(){
+    document.getElementById('kTarimas').textContent=scans.length;
+    document.getElementById('kCajas').textContent=scans.reduce((a,b)=>a+b.cajas,0);
+    document.getElementById('kPiezas').textContent=scans.reduce((a,b)=>a+b.piezas,0);
+    document.getElementById('detalle').innerHTML=scans.map((s,i)=>`<tr><td>${i+1}</td><td>${s.uid}</td><td>${s.producto}</td><td>${s.cajas}</td><td>${s.piezas}</td><td>${new Date(s.ts).toLocaleTimeString()}</td></tr>`).join('');
   }
 
-  function clearAll(){
-    if(!confirm('¿Borrar todas las lecturas?')) return;
-    scans = []; saveLS(); renderAll();
-  }
-
-  function groupByProducto(){
-    const map = new Map();
-    for(const s of scans){
-      const key = s.producto + '|' + (s.lote||'') + '|' + (s.caducidad||'');
-      const acc = map.get(key) || { producto:s.producto, descripcion:s.descripcion, lote:s.lote, caducidad:s.caducidad, tarimas:0, piezas:0 };
-      acc.tarimas += 1;
-      acc.piezas  += num(s.piezas);
-      // Mantén la descripción más larga/no vacía
-      if((s.descripcion||'').length > (acc.descripcion||'').length) acc.descripcion = s.descripcion;
-      map.set(key, acc);
-    }
-    return Array.from(map.values());
-  }
-
-  function kpis(){
-    const kTarimas = scans.length;
-    const kProductos = new Set(scans.map(s=>s.producto)).size;
-    const kPiezas = scans.reduce((a,b)=>a+num(b.piezas),0);
-    return { kTarimas, kProductos, kPiezas };
-  }
-
-  function renderAll(){
-    // KPIs
-    const k = kpis();
-    $('#kTarimas').textContent = k.kTarimas;
-    $('#kProductos').textContent = k.kProductos;
-    $('#kPiezas').textContent   = k.kPiezas;
-
-    // Detalle
-    tBodyDetalle.innerHTML = scans.map((s,i)=>`
-      <tr>
-        <td>${i+1}</td>
-        <td>${esc(s.uid)}</td>
-        <td>${esc(s.producto)}</td>
-        <td>${esc(s.descripcion)}</td>
-        <td>${esc(s.lote)}</td>
-        <td>${esc(s.caducidad)}</td>
-        <td>${num(s.piezas)}</td>
-        <td>${fmtHora(s.ts)}</td>
-        <td>${esc(s.almacen||'')}</td>
-        <td class="no-print"><button onclick="__app.remove(${i})">Eliminar</button></td>
-      </tr>
-    `).join('');
-
-    // Resumen
-    const resumen = groupByProducto();
-    tBodyResumen.innerHTML = resumen.map(r=>`
-      <tr>
-        <td>${esc(r.producto)}</td>
-        <td>${esc(r.descripcion)}</td>
-        <td>${esc(r.lote)}</td>
-        <td>${esc(r.caducidad)}</td>
-        <td>${r.tarimas}</td>
-        <td>${r.piezas}</td>
-      </tr>
-    `).join('');
-  }
-
-  function fmtHora(iso){ try{ const d=new Date(iso); return d.toLocaleString(); }catch{ return iso; } }
-  function esc(s){ return (s==null?'':String(s)).replace(/[&<>]/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m])); }
-
-  // === Excel ===
-  function exportExcel(){
-    if(scans.length===0) return alert('No hay lecturas');
-    const wb = XLSX.utils.book_new();
-
-    const detalle = scans.map((s,i)=>({
-      N:i+1, UID:s.uid, Producto:s.producto, Descripcion:s.descripcion, Lote:s.lote,
-      Caducidad:s.caducidad, Piezas:num(s.piezas), FechaHora:s.ts, Operador:s.operador, Almacen:s.almacen, Documento:s.documento
-    }));
-    const ws1 = XLSX.utils.json_to_sheet(detalle);
-    XLSX.utils.book_append_sheet(wb, ws1, 'Detalle');
-
-    const resumen = groupByProducto().map(r=>({Producto:r.producto, Descripcion:r.descripcion, Lote:r.lote, Caducidad:r.caducidad, Tarimas:r.tarimas, Piezas:r.piezas}));
-    const ws2 = XLSX.utils.json_to_sheet(resumen);
-    XLSX.utils.book_append_sheet(wb, ws2, 'Resumen');
-
-    const meta = {
-      Operador: $('#operador').value.trim(),
-      Almacen:  $('#almacen').value.trim(),
-      Documento:$('#documento').value.trim(),
-      Generado: new Date().toLocaleString()
-    };
-    const ws3 = XLSX.utils.json_to_sheet([meta]);
-    XLSX.utils.book_append_sheet(wb, ws3, 'Reporte');
-
-    const fname = `Inventario_QR_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.xlsx`;
-    XLSX.writeFile(wb, fname);
-  }
-
-  // === Persistencia ===
   function saveLS(){ localStorage.setItem(keyLS, JSON.stringify(scans)); }
   function loadLS(){ try{ return JSON.parse(localStorage.getItem(keyLS)||'[]'); }catch{ return []; } }
 
-  // === util UI ===
-  function status(msg, bad=false){ statusPill.textContent = msg; statusPill.style.color = bad? '#ffb3be':'#cfe7ff'; }
-  function toast(msg){ status(msg); setTimeout(()=>status('Listo'), 1500); }
+  window.clearAll=function(){ scans=[]; saveLS(); render(); }
 
-  // Exponer eliminar fila
-  window.__app = { remove: removeScan };
+  window.finalizarInventario=function(){
+    // aquí se podría exportar, enviar al servidor o mostrar resumen final
+    alert('Inventario finalizado. Total Tarimas: '+scans.length+' | Cajas: '+scans.reduce((a,b)=>a+b.cajas,0)+' | Piezas: '+scans.reduce((a,b)=>a+b.piezas,0));
+    // limpiar datos guardados
+    scans=[];
+    saveLS();
+    render();
+  }
+
+  startCamera();
+  render();
 })();
 </script>
 </body>
