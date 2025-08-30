@@ -71,9 +71,12 @@
   function startCamera(){
     html5Qrcode = new Html5Qrcode("reader");
     Html5Qrcode.getCameras().then(cameras=>{
-      const camId = cameras?.[0]?.id;
+      if(!cameras || cameras.length===0){ status('No se encontró cámara'); return; }
+      // Buscar cámara trasera
+      let backCam = cameras.find(c=>/back|trás|rear|environment/i.test(c.label));
+      const camId = backCam? backCam.id : cameras[0].id;
       html5Qrcode.start({ deviceId:{ exact: camId } },{ fps:10, qrbox:250 },onScanSuccess);
-      status('Cámara activa');
+      status('Cámara activa (trasera si disponible)');
     }).catch(()=>status('Error al iniciar cámara'));
   }
 
@@ -119,9 +122,7 @@
   window.clearAll=function(){ scans=[]; saveLS(); render(); }
 
   window.finalizarInventario=function(){
-    // aquí se podría exportar, enviar al servidor o mostrar resumen final
     alert('Inventario finalizado. Total Tarimas: '+scans.length+' | Cajas: '+scans.reduce((a,b)=>a+b.cajas,0)+' | Piezas: '+scans.reduce((a,b)=>a+b.piezas,0));
-    // limpiar datos guardados
     scans=[];
     saveLS();
     render();
