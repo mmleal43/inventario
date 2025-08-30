@@ -13,7 +13,7 @@
     h2{margin:10px 0}
     .scanner{position:relative;min-height:320px;border:1px dashed #37507a;border-radius:12px;background:#0b1328;overflow:hidden}
     video{width:100%;height:100%;object-fit:cover;display:block}
-    canvas{display:none}
+    canvas{position:absolute;inset:0;display:block;pointer-events:none}
     .scan-line{position:absolute;top:0;left:0;right:0;height:3px;background:rgba(0,229,255,0.8);box-shadow:0 0 12px #00e5ff;animation:scanAnim 2s linear infinite}
     @keyframes scanAnim{0%{top:0}50%{top:calc(100% - 3px)}100%{top:0}}
     table{width:100%;border-collapse:collapse;margin-top:12px;background:#0f172a}
@@ -43,8 +43,8 @@
       <h2>Escáner QR</h2>
       <div id="reader" class="scanner">
         <video id="video" playsinline muted></video>
-        <div class="scan-line" id="scanLine"></div>
-        <canvas id="canvas"></canvas>
+        <div class="scan-line"></div>
+        <canvas id="overlay"></canvas>
       </div>
       <div class="actions">
         <button id="btnStart" class="primary">Iniciar cámara</button>
@@ -95,9 +95,9 @@ let state = load() || { scans:[], totals:{ tarimas:0,cajas:0,piezas:0 } };
 let stream=null, raf=null, scanning=false;
 
 const video=$('#video');
-const canvas=$('#canvas');
-const ctx=canvas.getContext('2d');
-const beep=new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA='); // beep corto vacío
+const overlay=$('#overlay');
+const octx=overlay.getContext('2d');
+const beep=new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA=');
 
 function save(){ localStorage.setItem(LS, JSON.stringify(state)); }
 function load(){ try{ const raw=localStorage.getItem(LS); return raw? JSON.parse(raw): null; }catch{ return null; } }
@@ -107,19 +107,19 @@ function render(){
   $('#totalCajas').textContent=state.totals.cajas;
   $('#totalPiezas').textContent=state.totals.piezas;
   const tb=$('#tbody'); tb.innerHTML='';
-  state.scans.forEach((s,i)=>{ const tr=document.createElement('tr'); const dt=new Date(s.ts); tr.innerHTML=`<td>${i+1}</td><td>${esc(s.text)}</td><td>${dt.toLocaleString()}</td>`; tb.appendChild(tr); });
+  state.scans.forEach((s,i)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${i+1}</td><td>${esc(s.id)}</td><td>${esc(s.descripcion)}</td><td>${esc(s.lote)}</td><td>${esc(s.caducidad)}</td><td>${s.cajas}</td><td>${s.pzcaja}</td><td>${s.pztarima}</td>`;
+    tb.appendChild(tr);
+  });
 }
 
-// —— Parser Aldisan TSV → registro estructurado ——
 function parseRecord(text){
   const raw=String(text||'');
-  // 1) TSV Aldisan (tab o símbolo ⇥)
-  const tsv=raw.replace(/
-|␍/g,'').replace(/⇥/g,'	');
-  const parts = tsv.split(/	/);
+  const tsv=raw.replace(/\r|␍/g,'').replace(/⇥/g,'\t');
+  const parts = tsv.split(/\t/);
   if(parts.length>=6){
-    // columnas conocidas: 0 Operador, 1 UID (folio tarima), 2 Producto (ID de producto), 3 Descripción, 4 Lote, 5 Cad, 6 Cajas, 7 PzCaja, 8 Piezas
-    const id = (parts[2]||'').trim();             // << ID = PRODUCTO
+    const id = (parts[2]||'').trim();
     const descripcion = (parts[3]||'').trim();
     const lote = (parts[4]||'').trim();
     const caducidad = (parts[5]||'').trim();
@@ -129,50 +129,22 @@ function parseRecord(text){
     const pztarima = piezas || (cajas * pzcaja);
     return { id, descripcion, lote, caducidad, cajas, pzcaja, pztarima, raw };
   }
-  // 2) JSON/kv como fallback
-  try{
-    const o=JSON.parse(raw); const g=k=> (o[k]!=null? String(o[k]).trim(): ''); const n=k=> Number(o[k]||0)||0;
-    const id=g('producto')||g('ean')||g('sku')||g('codigo')||g('código')||g('id_producto')||g('articulo')||g('artículo')||g('01')||g('product')||g('product_id')||g('prod');
-    const descripcion=g('descripcion')||g('descripción')||g('desc')||g('nombre');
-    const lote=g('lote'); const caducidad=g('caducidad')||g('cad')||g('exp')||g('fecha_cad');
-    const cajas=n('cajas'); const pzcaja=n('piezasCaja')||n('pzcaja')||n('pzsxcaja');
-    const piezas=n('piezas')||n('pz')||n('pzs')||0; const pztarima=piezas || (cajas*pzcaja);
-    return { id, descripcion, lote, caducidad, cajas, pzcaja, pztarima, raw };
-  }catch{}
-  // 3) Si no se reconoce, registrar vacío pero conservar raw
   return { id:'', descripcion:'', lote:'', caducidad:'', cajas:0, pzcaja:0, pztarima:0, raw };
 }
 
 function addScanText(txt){
-  const rec = parseRecord(txt);
-  const now = Date.now();
-  state.scans.push({ ...rec, ts: now });
+  const rec=parseRecord(txt);
+  state.scans.push({...rec, ts:Date.now()});
   state.totals.tarimas++;
-  state.totals.cajas += rec.cajas;
-  state.totals.piezas += rec.pztarima;
+  state.totals.cajas+=rec.cajas;
+  state.totals.piezas+=rec.pztarima;
   save(); render();
-  try{ if(navigator.vibrate) navigator.vibrate([60]); }catch{}
-  playBeep();
-  const f=document.getElementById('flash'); if(f){ f.classList.add('show'); setTimeout(()=>f.classList.remove('show'),160); }
-}
-
-function feedback(){
-  // Animación borde
-  const reader=$('#reader'); reader.style.boxShadow='0 0 20px 5px #00e5ff'; setTimeout(()=> reader.style.boxShadow='none',400);
-  // Vibración
   if(navigator.vibrate) navigator.vibrate(200);
-  // Sonido
-  try{ beep.currentTime=0; beep.play(); }catch{}
+  try{beep.currentTime=0; beep.play();}catch{}
 }
 
 function showPermBanner(){
   const b=$('#permBanner'); if(!b) return; b.style.display='block';
-  const help=$('#permHelp'); const ua=navigator.userAgent.toLowerCase(); let tip='';
-  if(/chrome\//.test(ua)) tip=' (Chrome: Privacidad y seguridad → Configuración de sitios → Cámara)';
-  else if(/edg\//.test(ua)) tip=' (Edge: Cookies y permisos del sitio → Cámara)';
-  else if(/firefox\//.test(ua)) tip=' (Firefox: Permisos del sitio → Cámara)';
-  else if(/safari\//.test(ua)) tip=' (Safari: Preferencias → Sitios web → Cámara)';
-  help.textContent=tip;
 }
 
 async function startCamera(){
@@ -180,9 +152,9 @@ async function startCamera(){
   try{
     await stopCamera();
     const facing=$('#facing').value||'environment';
-    stream=await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal: facing } }, audio:false });
+    stream=await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:facing } }, audio:false });
     video.srcObject=stream; await video.play();
-    canvas.width = video.videoWidth || 640; canvas.height = video.videoHeight || 480;
+    overlay.width=video.videoWidth||640; overlay.height=video.videoHeight||480;
     scanning=true; tick();
     $('#status').textContent='Cámara activa';
   }catch(e){
@@ -193,59 +165,63 @@ async function startCamera(){
 
 async function stopCamera(){
   scanning=false; if(raf) cancelAnimationFrame(raf);
-  try{ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }catch{}
-  try{ video.pause(); video.srcObject=null; }catch{}
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  video.pause(); video.srcObject=null;
   $('#status').textContent='Cámara detenida';
+}
+
+function drawBox(loc){
+  if(!loc) return;
+  const pts=[loc.topLeftCorner,loc.topRightCorner,loc.bottomRightCorner,loc.bottomLeftCorner];
+  octx.clearRect(0,0,overlay.width,overlay.height);
+  octx.beginPath(); octx.moveTo(pts[0].x,pts[0].y);
+  for(let i=1;i<pts.length;i++) octx.lineTo(pts[i].x,pts[i].y);
+  octx.closePath(); octx.lineWidth=3; octx.strokeStyle='#00e5ff'; octx.stroke();
 }
 
 function tick(){
   if(!scanning) return;
   try{
-    ctx.drawImage(video,0,0,canvas.width,canvas.height);
-    const img=ctx.getImageData(0,0,canvas.width,canvas.height);
-    const res = window.jsQR ? window.jsQR(img.data, img.width, img.height) : null;
-    if(res && res.data){ addScanText(res.data); scanning=false; setTimeout(()=>{scanning=true; tick();},1200); }
-  }catch(e){ }
+    const w=overlay.width,h=overlay.height;
+    octx.drawImage(video,0,0,w,h);
+    const img=octx.getImageData(0,0,w,h);
+    const res=window.jsQR?jsQR(img.data,img.width,img.height,{inversionAttempts:"attemptBoth"}):null;
+    if(res&&res.data){
+      drawBox(res.location);
+      addScanText(res.data);
+      scanning=false;
+      setTimeout(()=>{octx.clearRect(0,0,w,h);scanning=true;tick();},1200);
+    }
+  }catch{}
   raf=requestAnimationFrame(tick);
 }
 
-$('#btnScanImg').addEventListener('click', ()=> $('#fileInput').click());
-$('#fileInput').addEventListener('change', ()=>{
+$('#btnScanImg').onclick=()=>$('#fileInput').click();
+$('#fileInput').onchange=()=>{
   const f=$('#fileInput').files?.[0]; if(!f) return;
   const img=new Image(); img.onload=()=>{
-    canvas.width=img.width; canvas.height=img.height; ctx.drawImage(img,0,0);
-    let txt=null; try{ const d=ctx.getImageData(0,0,canvas.width,canvas.height); const r=window.jsQR? window.jsQR(d.data,d.width,d.height):null; if(r&&r.data) txt=r.data; }catch{}
+    overlay.width=img.width; overlay.height=img.height; octx.drawImage(img,0,0);
+    let txt=null; try{const d=octx.getImageData(0,0,overlay.width,overlay.height); const r=jsQR?jsQR(d.data,d.width,d.height):null; if(r&&r.data) txt=r.data;}catch{}
     if(txt) addScanText(txt); else alert('No se encontró un QR en la imagen');
   }; img.src=URL.createObjectURL(f);
-});
-$('#btnPaste').addEventListener('click', async ()=>{
-  try{ const txt=await navigator.clipboard.readText(); if(!txt) return alert('Portapapeles vacío'); addScanText(txt); }
-  catch{ const raw=prompt('Pega aquí el texto del QR'); if(raw) addScanText(raw); }
-});
+};
+$('#btnPaste').onclick=async()=>{
+  try{const txt=await navigator.clipboard.readText(); if(txt) addScanText(txt); else alert('Portapapeles vacío');}
+  catch{const raw=prompt('Pega aquí el texto del QR'); if(raw) addScanText(raw);}
+};
 
 function exportCSV(){
   const aoa=[["ALDISAN-KSK INVENTARIO"],[],["Tarimas",state.totals.tarimas],["Cajas",state.totals.cajas],["Piezas",state.totals.piezas],[],["#","ID","Descripción","Lote","Caducidad","Cajas","Pz x Caja","Pz x Tarima"]];
-  state.scans.forEach((s,i)=>{ const dt=new Date(s.ts); aoa.push([i+1,s.id||'',s.descripcion||'',s.lote||'',s.caducidad||'',s.cajas??0,s.pzcaja??0,s.pztarima??0]); });
+  state.scans.forEach((s,i)=>{aoa.push([i+1,s.id,s.descripcion,s.lote,s.caducidad,s.cajas,s.pzcaja,s.pztarima]);});
   const csv=aoa.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
-  const blob=new Blob([csv],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='inventario_'+Date.now()+'.csv'; a.click();
-}
-
-function runParserTests(){
-  const cases=[
-    {name:'TSV Aldisan con piezas explícitas', input:'MANUEL\t20250827-0011\t10560\tEMULSION DIA BE CALM 400ML\tWGH06034\t2028-06-04\t60\t12\t720', expect:{cajas:60,piezas:720}},
-    {name:'TSV Aldisan sin piezas explícitas', input:'MANUEL\tU-2\t10560\tDESC\tL1\t2028-06-04\t5\t10', expect:{cajas:5,piezas:50}},
-    {name:'No TSV', input:'ALGO SIN CAMPOS', expect:{cajas:0,piezas:0}},
-  ];
-  let pass=0; const out=[];
-  for(const tc of cases){ const got=parseCountsFromQR(tc.input); const ok=(got.cajas===tc.expect.cajas && got.piezas===tc.expect.piezas); pass+=ok?1:0; out.push(`[${ok?'OK':'FAIL'}] ${tc.name} → ${JSON.stringify(got)} esperado ${JSON.stringify(tc.expect)}`); }
-  alert((pass===cases.length? '✅ Todas las pruebas pasaron':'⚠️ Algunas pruebas fallaron')+'\n\n'+out.join('\n'));
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='inventario_'+Date.now()+'.csv'; a.click();
 }
 
 $('#btnStart').onclick=startCamera;
 $('#btnStop').onclick=stopCamera;
 $('#btnExport').onclick=exportCSV;
-$('#btnClear').onclick=()=>{ if(confirm('¿Finalizar y limpiar inventario?')){ state={ scans:[], totals:{ tarimas:0,cajas:0,piezas:0 } }; save(); render(); $('#status').textContent='Inventario limpio'; } };
-$('#btnTests').onclick=runParserTests;
+$('#btnClear').onclick=()=>{ if(confirm('¿Finalizar y limpiar inventario?')){ state={scans:[],totals:{tarimas:0,cajas:0,piezas:0}}; save(); render(); $('#status').textContent='Inventario limpio'; } };
 
 render();
 </script>
